@@ -1,0 +1,19 @@
+# Unraid stack that builds straight from GitHub — no clone needed on the
+# server. Paste this into a Compose Manager stack (or copy just this file
+# plus a .env to /mnt/user/appdata/brownie-points).
+#
+# NOTE: building from a URL like this requires the repo to be PUBLIC.
+# For a private repo, clone it instead (see README) or embed a personal
+# access token in the URL — not recommended, it sits here in plain text.
+services:
+  web:
+    build: https://github.com/Overheadband1230/Brownie-Points.git#main
+    ports:
+      - "8000:8000"
+    volumes:
+      - /mnt/user/appdata/brownie-points/data:/data
+    environment:
+      - DATABASE_URL=sqlite:////data/brownie.db
+      - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-string}
+      - INVITE_CODE=${INVITE_CODE:-brownie-batch}
+    restart: unless-stopped

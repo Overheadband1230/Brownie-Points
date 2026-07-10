@@ -22,7 +22,11 @@ Signing up requires an **invite code** (default: `brownie-batch`) — share it w
 
 ## Run it on Unraid
 
-The stack is compose-based, so the **Compose Manager** plugin is the smoothest path:
+The stack is compose-based, so the **Compose Manager** plugin is the smoothest path.
+
+**No-clone option (public repo):** Docker can build straight from the GitHub URL, so the server never needs the source. Install Compose Manager, add a new stack, and paste in the contents of [`docker-compose.unraid.yml`](docker-compose.unraid.yml) — its `build:` points at `https://github.com/Overheadband1230/Brownie-Points.git#main`. Set `SECRET_KEY`/`INVITE_CODE` in the stack's `.env`, Compose Up, done. To update after pushing new code, just **Compose Down → Compose Up (with build)** — it re-fetches `main`. This requires the repo to be public; for a private repo use the clone route below.
+
+**Clone route (works for private repos):**
 
 1. **Apps** tab → install **Compose Manager** (Community Applications).
 2. Get this repo onto the server at `/mnt/user/appdata/brownie-points` — either `git clone` over SSH, or copy the folder across an SMB share.
