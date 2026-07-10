@@ -201,8 +201,12 @@ def _shop_page(request: Request, db: Session, user: User, **extra):
 
 
 def _settings_page(request: Request, db: Session, user: User, **extra):
+    return _render(request, "settings.html", user, db, **extra)
+
+
+def _offerings_page(request: Request, db: Session, user: User, **extra):
     my_items = [i for i in _active_items(db) if i.owner_id == user.id]
-    return _render(request, "settings.html", user, db,
+    return _render(request, "offerings.html", user, db,
                    my_items=my_items, categories=_categories(db), **extra)
 
 
@@ -247,7 +251,13 @@ def item_redeem(request: Request, item_id: int,
     return _shop_page(request, db, user, error=error, redeemed=redeemed)
 
 
-# ---------- my offerings (managed from Settings) ----------
+# ---------- my offerings ----------
+
+@router.get("/offerings", response_class=HTMLResponse)
+def offerings_page(request: Request, user: User = Depends(auth.get_current_user),
+                   db: Session = Depends(get_db)):
+    return _offerings_page(request, db, user)
+
 
 @router.post("/items", response_class=HTMLResponse)
 def item_create(request: Request, name: str = Form(""), price: int = Form(...),
@@ -260,7 +270,7 @@ def item_create(request: Request, name: str = Form(""), price: int = Form(...),
         listed = item.name
     except ValueError as e:
         error = str(e)
-    return _settings_page(request, db, user, items_error=error, listed=listed)
+    return _offerings_page(request, db, user, items_error=error, listed=listed)
 
 
 @router.post("/items/{item_id}/delist", response_class=HTMLResponse)
@@ -271,7 +281,7 @@ def item_delist(request: Request, item_id: int,
         transactions.delist_item(db, user, item_id)
     except (ValueError, PermissionError) as e:
         error = str(e)
-    return _settings_page(request, db, user, items_error=error)
+    return _offerings_page(request, db, user, items_error=error)
 
 
 def _redemption_action(request: Request, db: Session, user: User, action, redemption_id: int):

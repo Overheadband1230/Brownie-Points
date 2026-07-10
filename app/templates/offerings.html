@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}My Offerings{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-amber-900 mb-1">🏷️ My offerings</h1>
+  <p class="text-stone-500 text-sm mb-5">Favors you'll do for points, at a price you set. They show up in the <a href="/shop" class="text-amber-800 font-semibold hover:underline">Shop</a> for everyone else.</p>
+
+  {% if listed %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">“{{ listed }}” is on the shelf! Let the redemptions roll in. 🛍️</p>{% endif %}
+  {% if items_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ items_error }}</p>{% endif %}
+
+  <div class="bg-white rounded-2xl shadow p-6 mb-6">
+    <h2 class="font-bold text-lg mb-4">On the shelf</h2>
+    {% if my_items %}
+    <ul class="space-y-2">
+      {% for item in my_items %}
+      <li class="flex items-center gap-3 text-sm border border-stone-200 rounded-xl px-3 py-2">
+        <span class="flex-1 truncate">{{ item.name }}{% if item.category %} <span class="text-stone-400 text-xs">· {{ item.category }}</span>{% endif %}</span>
+        <span class="font-mono font-semibold text-amber-900 whitespace-nowrap">{{ item.price }} BP</span>
+        <form method="post" action="/items/{{ item.id }}/delist">
+          <button class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg">Delist</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-stone-400 text-sm">Your shelf is empty. What are you good at? Put a price on it.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-4">List something new</h2>
+    <form method="post" action="/items" class="space-y-3 text-sm">
+      <input name="name" type="text" required placeholder="e.g. one home-cooked dinner"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <div class="flex gap-3">
+        <input name="price" type="number" min="1" step="1" required placeholder="Price (BP)"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2">
+        <select name="category" class="border border-stone-300 rounded-lg px-2 py-2 bg-white">
+          <option value="">—</option>
+          {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">List it 🏷️</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
