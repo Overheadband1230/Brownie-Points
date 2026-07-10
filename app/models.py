@@ -18,6 +18,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String)
     password_hash: Mapped[str] = mapped_column(String)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    avatar: Mapped[str] = mapped_column(String, default="🍫", server_default="🍫")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -41,6 +42,7 @@ class Redemption(Base):
     status: Mapped[str] = mapped_column(String, default=RedemptionStatus.PENDING, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    nudged_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     requester: Mapped[User] = relationship(foreign_keys=[requester_id])
     grantor: Mapped[User] = relationship(foreign_keys=[grantor_id])
@@ -54,6 +56,33 @@ class EntryType:
     ADJUSTMENT = "ADJUSTMENT"
 
 
+class BetStatus:
+    PROPOSED = "PROPOSED"
+    ACTIVE = "ACTIVE"
+    SETTLED = "SETTLED"
+    DECLINED = "DECLINED"
+    CANCELLED = "CANCELLED"
+    VOIDED = "VOIDED"
+
+
+class Bet(Base):
+    __tablename__ = "bets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    challenger_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    opponent_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    stake: Mapped[int] = mapped_column(Integer)  # per side; the pot is 2× this
+    terms: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String, default=BetStatus.PROPOSED, index=True)
+    winner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    challenger: Mapped[User] = relationship(foreign_keys=[challenger_id])
+    opponent: Mapped[User] = relationship(foreign_keys=[opponent_id])
+    winner: Mapped[User | None] = relationship(foreign_keys=[winner_id])
+
+
 class LedgerEntry(Base):
     __tablename__ = "ledger_entries"
 
@@ -65,11 +94,24 @@ class LedgerEntry(Base):
     reason: Mapped[str] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(String, nullable=True)
     redemption_id: Mapped[int | None] = mapped_column(ForeignKey("redemptions.id"), nullable=True)
+    bet_id: Mapped[int | None] = mapped_column(ForeignKey("bets.id"), nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     counterparty: Mapped[User | None] = relationship(foreign_keys=[counterparty_id])
     redemption: Mapped[Redemption | None] = relationship(foreign_keys=[redemption_id])
+    bet: Mapped[Bet | None] = relationship(foreign_keys=[bet_id])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    link: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Item(Base):

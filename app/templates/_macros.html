@@ -1,3 +1,7 @@
+{% macro user_tag(u) -%}
+<span class="whitespace-nowrap">{{ u.avatar or '🍫' }} {{ u.display_name }}</span>
+{%- endmacro %}
+
 {% macro status_chip(status) -%}
   {% set colors = {
     'PENDING':   'bg-amber-100 text-amber-800',

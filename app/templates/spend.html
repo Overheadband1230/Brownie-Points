@@ -20,7 +20,7 @@
     <div>
       <label class="block text-sm font-medium mb-1">Ask whom?</label>
       <select name="grantor_id" required class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
-        {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
+        {% for u in users %}<option value="{{ u.id }}">{{ u.avatar or '🍫' }} {{ u.display_name }}</option>{% endfor %}
       </select>
     </div>
     <div>

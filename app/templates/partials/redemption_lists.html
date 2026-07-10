@@ -1,4 +1,4 @@
-{% from "_macros.html" import status_chip %}
+{% from "_macros.html" import status_chip, user_tag %}
 <div id="redemption-lists">
   {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
 
@@ -11,7 +11,7 @@
       <li class="border border-stone-200 rounded-xl p-3 text-sm">
         <div class="flex items-center gap-2 flex-wrap">
           {{ status_chip(r.status) }}
-          <span class="flex-1"><b>{{ r.requester.display_name }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
+          <span class="flex-1"><b>{{ user_tag(r.requester) }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
         </div>
         <div class="flex gap-2 mt-2">
           {% if r.status == 'PENDING' %}
@@ -40,7 +40,7 @@
       <li class="border border-stone-200 rounded-xl p-3 text-sm">
         <div class="flex items-center gap-2 flex-wrap">
           {{ status_chip(r.status) }}
-          <span class="flex-1">Asking <b>{{ r.grantor.display_name }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b></span>
+          <span class="flex-1">Asking <b>{{ user_tag(r.grantor) }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b></span>
           <span class="text-xs text-stone-400">{{ r.created_at.strftime('%b %d') }}</span>
         </div>
         <div class="flex gap-2 mt-2">

@@ -65,6 +65,7 @@ def api_me(user: User = Depends(auth.get_current_user), db: Session = Depends(ge
         "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
+        "avatar": user.avatar,
         "is_admin": user.is_admin,
         "spendable_balance": balance.spendable,
         "lifetime_earned": balance.lifetime_earned,
@@ -107,6 +108,7 @@ def api_users(user: User = Depends(auth.get_current_user), db: Session = Depends
         {
             "id": u.id,
             "display_name": u.display_name,
+            "avatar": u.avatar,
             "spendable_balance": get_balance(db, u.id).spendable,
         }
         for u in users

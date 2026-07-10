@@ -18,7 +18,7 @@
   <div class="bg-white rounded-2xl shadow p-4 text-sm flex items-center gap-3">
     <div class="flex-1 min-w-0">
       <p class="font-medium truncate" title="{{ item.name }}">{{ item.name }}</p>
-      <p class="text-xs text-stone-400">by {{ item.owner.display_name }}{% if item.category %} · {{ item.category }}{% endif %}</p>
+      <p class="text-xs text-stone-400">by {{ item.owner.avatar or '🍫' }} {{ item.owner.display_name }}{% if item.category %} · {{ item.category }}{% endif %}</p>
     </div>
     <form method="post" action="/items/{{ item.id }}/redeem">
       <button class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap"

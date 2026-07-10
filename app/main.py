@@ -10,10 +10,30 @@ from app.models import AppSetting, Category
 from app.routers import api, pages
 from app.services.settings import INVITE_CODE_KEY
 
+# Columns added to existing tables after the initial release. create_all
+# only creates missing *tables*, so these are applied via ALTER TABLE on
+# boot when absent — keeping upgrades a plain "pull + rebuild" with no
+# manual migration step. Append here; never edit or remove past entries.
+_COLUMN_MIGRATIONS = [
+    ("users", "avatar", "TEXT NOT NULL DEFAULT '🍫'"),
+    ("redemptions", "nudged_at", "DATETIME"),
+    ("ledger_entries", "bet_id", "INTEGER REFERENCES bets(id)"),
+]
+
+
+def _ensure_columns(conn) -> None:
+    for table, column, ddl in _COLUMN_MIGRATIONS:
+        existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
 
 def init_db() -> None:
-    """Create tables if absent and seed defaults. Safe to re-run."""
+    """Create tables if absent, apply column migrations, seed defaults.
+    Safe to re-run on every boot."""
     Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        _ensure_columns(conn)
     with SessionLocal() as db:
         existing = set(db.scalars(select(Category.name)).all())
         for name in DEFAULT_CATEGORIES:

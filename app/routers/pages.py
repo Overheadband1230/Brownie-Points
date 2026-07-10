@@ -340,6 +340,19 @@ def settings_account(request: Request, email: str = Form(""), display_name: str 
     return _settings_page(request, db, user, account_error=error, account_saved=saved)
 
 
+@router.post("/settings/avatar", response_class=HTMLResponse)
+def settings_avatar(request: Request, avatar: str = Form(""),
+                    user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    saved = False
+    try:
+        auth.update_avatar(db, user, avatar)
+        saved = True
+    except ValueError as e:
+        error = str(e)
+    return _settings_page(request, db, user, avatar_error=error, avatar_saved=saved)
+
+
 @router.post("/settings/password", response_class=HTMLResponse)
 def settings_password(request: Request, current_password: str = Form(""),
                       new_password: str = Form(""),

@@ -27,7 +27,7 @@
       <label class="block text-sm font-medium mb-1">Who earned it?</label>
       <select name="to_user_id" required class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
         {% for u in users %}
-        <option value="{{ u.id }}" {% if form and form.to_user_id == u.id %}selected{% endif %}>{{ u.display_name }}</option>
+        <option value="{{ u.id }}" {% if form and form.to_user_id == u.id %}selected{% endif %}>{{ u.avatar or '🍫' }} {{ u.display_name }}</option>
         {% endfor %}
       </select>
     </div>

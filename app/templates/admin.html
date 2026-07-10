@@ -22,7 +22,7 @@
       <tbody class="divide-y divide-stone-100">
         {% for row in rows %}
         <tr>
-          <td class="py-2 pr-4 font-medium">{{ row.user.display_name }}{% if row.user.is_admin %} <span class="text-xs text-violet-600">admin</span>{% endif %}</td>
+          <td class="py-2 pr-4 font-medium">{{ row.user.avatar or '🍫' }} {{ row.user.display_name }}{% if row.user.is_admin %} <span class="text-xs text-violet-600">admin</span>{% endif %}</td>
           <td class="py-2 pr-4 text-stone-500">{{ row.user.email }}</td>
           <td class="py-2 pr-4 text-right font-mono">{{ row.balance.spendable }}</td>
           <td class="py-2 pr-4 text-right font-mono text-amber-700">{{ row.balance.held }}</td>

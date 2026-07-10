@@ -102,6 +102,17 @@ def update_account(db: Session, user: User, email: str, display_name: str,
     return user
 
 
+def update_avatar(db: Session, user: User, avatar: str) -> User:
+    avatar = avatar.strip()
+    if not avatar:
+        raise ValueError("Pick an emoji — any emoji.")
+    if len(avatar) > 8:  # room for multi-codepoint emoji, not for essays
+        raise ValueError("That's a bit much. One emoji, please.")
+    user.avatar = avatar
+    db.commit()
+    return user
+
+
 def change_password(db: Session, user: User, current_password: str,
                     new_password: str) -> User:
     if not verify_password(current_password, user.password_hash):

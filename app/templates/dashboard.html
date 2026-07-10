@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import type_chip, amount_cell, status_chip %}
+{% from "_macros.html" import type_chip, amount_cell, status_chip, user_tag %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
@@ -46,7 +46,7 @@
   <ul class="space-y-2">
     {% for r in pending %}
     <li class="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2">
-      <span><b>{{ r.requester.display_name }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
+      <span><b>{{ user_tag(r.requester) }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
       <a href="/spend" class="text-amber-800 font-semibold whitespace-nowrap hover:underline">Review →</a>
     </li>
     {% endfor %}
@@ -62,7 +62,7 @@
     <li class="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2">
       <span>
         {{ status_chip(r.status) }}
-        Asking <b>{{ r.grantor.display_name }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b>
+        Asking <b>{{ user_tag(r.grantor) }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b>
         {% if r.status == 'APPROVED' %}<span class="text-sky-600">· approved, waiting to happen</span>{% endif %}
       </span>
       <a href="/spend" class="text-sky-800 font-semibold whitespace-nowrap hover:underline">View →</a>
@@ -81,7 +81,7 @@
       {{ type_chip(e.entry_type) }}
       <span class="flex-1 truncate">
         {% if e.user_id == user.id %}
-          {{ e.reason }}{% if e.counterparty %} <span class="text-stone-400">· {{ e.counterparty.display_name }}</span>{% endif %}
+          {{ e.reason }}{% if e.counterparty %} <span class="text-stone-400">· {{ user_tag(e.counterparty) }}</span>{% endif %}
         {% else %}
           <span class="text-stone-400">You →</span> {{ e.reason }}
         {% endif %}
