@@ -4,20 +4,25 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
-from app.config import DEFAULT_CATEGORIES
+from app.config import DEFAULT_CATEGORIES, INVITE_CODE
 from app.db import Base, SessionLocal, engine
-from app.models import Category  # noqa: F401 — ensure all models are registered
+from app.models import AppSetting, Category
 from app.routers import api, pages
+from app.services.settings import INVITE_CODE_KEY
 
 
 def init_db() -> None:
-    """Create tables if absent and seed default categories. Safe to re-run."""
+    """Create tables if absent and seed defaults. Safe to re-run."""
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         existing = set(db.scalars(select(Category.name)).all())
         for name in DEFAULT_CATEGORIES:
             if name not in existing:
                 db.add(Category(name=name))
+        # Seed the invite code from the env var once; after that the
+        # DB value wins and admins edit it from the Admin page.
+        if db.get(AppSetting, INVITE_CODE_KEY) is None:
+            db.add(AppSetting(key=INVITE_CODE_KEY, value=INVITE_CODE))
         db.commit()
 
 

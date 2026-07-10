@@ -4,7 +4,8 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import INVITE_CODE, SECRET_KEY, SESSION_MAX_AGE_SECONDS
+from app.config import SECRET_KEY, SESSION_MAX_AGE_SECONDS
+from app.services.settings import get_invite_code
 from app.db import get_db
 from app.models import User
 
@@ -65,7 +66,7 @@ def _validate_email(db: Session, email: str, exclude_user_id: int | None = None)
 
 def register_user(db: Session, email: str, display_name: str, password: str,
                   invite_code: str = "") -> User:
-    if invite_code.strip() != INVITE_CODE:
+    if invite_code.strip() != get_invite_code(db):
         raise ValueError("Wrong invite code. No brownies for strangers. 🍫")
     email = _validate_email(db, email)
     display_name = display_name.strip()

@@ -258,6 +258,84 @@ def test_account_settings(client):
         "email": "bob2@example.com", "password": "newpassword1"}).status_code == 200
 
 
+def test_admin_user_management(client):
+    register(client, "alice@example.com", "Alice")  # admin
+    register(client, "bob@example.com", "Bob")      # logged in as Bob
+
+    # Non-admin is rejected across the board.
+    assert client.post("/api/admin/users", json={
+        "email": "x@example.com", "display_name": "X", "password": "password1"}).status_code == 403
+    assert client.post("/api/admin/users/1/password", json={
+        "new_password": "hackerman1"}).status_code == 403
+    assert client.post("/api/admin/users/1/delete").status_code == 403
+
+    login(client, "alice@example.com")
+
+    # Add a user directly (no invite code needed).
+    r = client.post("/api/admin/users", json={
+        "email": "carol@example.com", "display_name": "Carol", "password": "password1"})
+    assert r.status_code == 201, r.text
+    carol_id = r.json()["id"]
+
+    # Duplicate email rejected.
+    assert client.post("/api/admin/users", json={
+        "email": "carol@example.com", "display_name": "Carol2", "password": "password1"}).status_code == 400
+
+    # Reset Carol's password; she can log in with the new one.
+    assert client.post(f"/api/admin/users/{carol_id}/password", json={
+        "new_password": "newpassword1"}).status_code == 200
+    client.cookies.clear()
+    assert client.post("/api/auth/login", json={
+        "email": "carol@example.com", "password": "newpassword1"}).status_code == 200
+
+    # Delete Carol (no history) — fine. Deleting a user with history — refused.
+    login(client, "alice@example.com")
+    assert client.post(f"/api/admin/users/{carol_id}/delete").status_code == 200
+    client.post("/api/awards", json={"to_user_id": 2, "amount": 1, "reason": "x"})
+    r = client.post("/api/admin/users/2/delete")
+    assert r.status_code == 400
+    assert "history" in r.json()["detail"]
+
+    # Can't delete yourself.
+    assert client.post("/api/admin/users/1/delete").status_code == 400
+
+
+def test_admin_invite_code_change(client):
+    register(client, "alice@example.com", "Alice")
+
+    assert client.post("/api/admin/invite-code", json={"code": "secret-snack"}).status_code == 200
+
+    # Old code no longer works; new one does.
+    client.cookies.clear()
+    r = client.post("/api/auth/register", json={
+        "email": "bob@example.com", "display_name": "Bob", "password": "password1",
+        "invite_code": "test-invite"})
+    assert r.status_code == 400
+    register(client, "bob@example.com", "Bob", invite_code="secret-snack")
+
+    # Non-admin can't change it.
+    assert client.post("/api/admin/invite-code", json={"code": "bobs-code"}).status_code == 403
+
+
+def test_admin_category_management(client):
+    register(client, "alice@example.com", "Alice")
+
+    r = client.post("/api/categories", json={"name": "Snacks"})
+    assert r.status_code == 201
+    assert r.json()["name"] == "snacks"  # normalized to lowercase
+    assert "snacks" in client.get("/api/categories").json()
+
+    # Duplicate rejected.
+    assert client.post("/api/categories", json={"name": "snacks"}).status_code == 400
+
+    assert client.post(f"/api/categories/{r.json()['id']}/delete").status_code == 200
+    assert "snacks" not in client.get("/api/categories").json()
+
+    # Non-admin can't manage categories.
+    register(client, "bob@example.com", "Bob")
+    assert client.post("/api/categories", json={"name": "sneaky"}).status_code == 403
+
+
 def test_categories_seeded(client):
     assert set(client.get("/api/categories").json()) == {
         "favor", "chore", "apology", "gift", "bet", "other"}

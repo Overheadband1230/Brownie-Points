@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from app import auth
 from app.db import get_db
-from app.models import Category, Item, LedgerEntry, Redemption, RedemptionStatus, User
+from app.models import Category, EntryType, Item, LedgerEntry, Redemption, RedemptionStatus, User
+from app.services import admin as admin_service
 from app.services import transactions
 from app.services.ledger import get_balance
+from app.services.settings import get_invite_code
 
 router = APIRouter()
 
@@ -108,8 +110,36 @@ def dashboard(request: Request, user: User | None = Depends(auth.get_optional_us
         .order_by(LedgerEntry.created_at.desc(), LedgerEntry.id.desc())
         .limit(10)
     ).all()
+
+    # My outgoing requests still in flight (waiting on someone else).
+    my_open_requests = db.scalars(
+        select(Redemption)
+        .where(Redemption.requester_id == user.id,
+               Redemption.status.in_([RedemptionStatus.PENDING, RedemptionStatus.APPROVED]))
+        .order_by(Redemption.created_at.desc())
+    ).all()
+
+    # Confetti when new awards arrived since this browser last looked.
+    # Tracked with a plain cookie so it's zero-migration and per-device.
+    try:
+        seen_award_id = int(request.cookies.get("bp_seen_award", "0"))
+    except ValueError:
+        seen_award_id = 0
+    new_awards = [
+        e for e in db.scalars(
+            select(LedgerEntry)
+            .where(LedgerEntry.user_id == user.id,
+                   LedgerEntry.entry_type == EntryType.AWARD,
+                   LedgerEntry.id > seen_award_id)
+            .order_by(LedgerEntry.id)
+        ).all()
+    ]
+    latest_award_id = max((e.id for e in new_awards), default=seen_award_id)
+
     return _render(request, "dashboard.html", user, db,
-                   recent=recent, pending=_pending_for_me(db, user))
+                   recent=recent, pending=_pending_for_me(db, user),
+                   my_open_requests=my_open_requests,
+                   new_awards=new_awards, latest_award_id=latest_award_id)
 
 
 # ---------- award ----------
@@ -152,22 +182,28 @@ def _redemptions_context(db: Session, user: User) -> dict:
     return {"mine": mine, "for_me": for_me}
 
 
-def _items_context(db: Session, user: User) -> dict:
-    active = db.scalars(
+def _active_items(db: Session) -> list[Item]:
+    return db.scalars(
         select(Item).where(Item.is_active == True)  # noqa: E712
         .order_by(Item.owner_id, Item.price)
     ).all()
-    return {
-        "menu_items": [i for i in active if i.owner_id != user.id],
-        "my_items": [i for i in active if i.owner_id == user.id],
-    }
 
 
 def _spend_page(request: Request, db: Session, user: User, **extra):
     return _render(request, "spend.html", user, db,
                    users=_users_except(db, user.id), categories=_categories(db),
-                   **_items_context(db, user), **_redemptions_context(db, user),
-                   **extra)
+                   **_redemptions_context(db, user), **extra)
+
+
+def _shop_page(request: Request, db: Session, user: User, **extra):
+    menu_items = [i for i in _active_items(db) if i.owner_id != user.id]
+    return _render(request, "shop.html", user, db, menu_items=menu_items, **extra)
+
+
+def _settings_page(request: Request, db: Session, user: User, **extra):
+    my_items = [i for i in _active_items(db) if i.owner_id == user.id]
+    return _render(request, "settings.html", user, db,
+                   my_items=my_items, categories=_categories(db), **extra)
 
 
 @router.get("/spend", response_class=HTMLResponse)
@@ -190,31 +226,12 @@ def spend_submit(request: Request, grantor_id: int = Form(...), amount: int = Fo
     return _spend_page(request, db, user, error=error, created=created)
 
 
-# ---------- items (the menu) ----------
+# ---------- shop (browse & redeem items) ----------
 
-@router.post("/items", response_class=HTMLResponse)
-def item_create(request: Request, name: str = Form(""), price: int = Form(...),
-                category: str = Form(""),
-                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    error = None
-    listed = None
-    try:
-        item = transactions.create_item(db, user, name, price, category or None)
-        listed = item.name
-    except ValueError as e:
-        error = str(e)
-    return _spend_page(request, db, user, error=error, listed=listed)
-
-
-@router.post("/items/{item_id}/delist", response_class=HTMLResponse)
-def item_delist(request: Request, item_id: int,
-                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    error = None
-    try:
-        transactions.delist_item(db, user, item_id)
-    except (ValueError, PermissionError) as e:
-        error = str(e)
-    return _spend_page(request, db, user, error=error)
+@router.get("/shop", response_class=HTMLResponse)
+def shop_page(request: Request, user: User = Depends(auth.get_current_user),
+              db: Session = Depends(get_db)):
+    return _shop_page(request, db, user)
 
 
 @router.post("/items/{item_id}/redeem", response_class=HTMLResponse)
@@ -227,7 +244,34 @@ def item_redeem(request: Request, item_id: int,
         redeemed = redemption.reason
     except ValueError as e:
         error = str(e)
-    return _spend_page(request, db, user, error=error, redeemed=redeemed)
+    return _shop_page(request, db, user, error=error, redeemed=redeemed)
+
+
+# ---------- my offerings (managed from Settings) ----------
+
+@router.post("/items", response_class=HTMLResponse)
+def item_create(request: Request, name: str = Form(""), price: int = Form(...),
+                category: str = Form(""),
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    listed = None
+    try:
+        item = transactions.create_item(db, user, name, price, category or None)
+        listed = item.name
+    except ValueError as e:
+        error = str(e)
+    return _settings_page(request, db, user, items_error=error, listed=listed)
+
+
+@router.post("/items/{item_id}/delist", response_class=HTMLResponse)
+def item_delist(request: Request, item_id: int,
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    try:
+        transactions.delist_item(db, user, item_id)
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    return _settings_page(request, db, user, items_error=error)
 
 
 def _redemption_action(request: Request, db: Session, user: User, action, redemption_id: int):
@@ -269,7 +313,7 @@ def fulfill(request: Request, redemption_id: int,
 @router.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, user: User = Depends(auth.get_current_user),
                   db: Session = Depends(get_db)):
-    return _render(request, "settings.html", user, db)
+    return _settings_page(request, db, user)
 
 
 @router.post("/settings/account", response_class=HTMLResponse)
@@ -283,8 +327,7 @@ def settings_account(request: Request, email: str = Form(""), display_name: str 
         saved = True
     except ValueError as e:
         error = str(e)
-    return _render(request, "settings.html", user, db,
-                   account_error=error, account_saved=saved)
+    return _settings_page(request, db, user, account_error=error, account_saved=saved)
 
 
 @router.post("/settings/password", response_class=HTMLResponse)
@@ -298,8 +341,7 @@ def settings_password(request: Request, current_password: str = Form(""),
         saved = True
     except ValueError as e:
         error = str(e)
-    return _render(request, "settings.html", user, db,
-                   password_error=error, password_saved=saved)
+    return _settings_page(request, db, user, password_error=error, password_saved=saved)
 
 
 # ---------- ledger ----------
@@ -338,11 +380,8 @@ def reports_page(request: Request, user: User = Depends(auth.get_current_user),
 
 # ---------- admin ----------
 
-@router.get("/admin", response_class=HTMLResponse)
-def admin_page(request: Request, view_user_id: int | None = None,
-               user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    if not user.is_admin:
-        return RedirectResponse("/", status_code=303)
+def _admin_page(request: Request, db: Session, user: User,
+                view_user_id: int | None = None, **extra):
     users = db.scalars(select(User).order_by(User.display_name)).all()
     rows = [{"user": u, "balance": get_balance(db, u.id)} for u in users]
     viewed = db.get(User, view_user_id) if view_user_id else None
@@ -352,22 +391,82 @@ def admin_page(request: Request, view_user_id: int | None = None,
             select(LedgerEntry).where(LedgerEntry.user_id == viewed.id)
             .order_by(LedgerEntry.created_at.desc(), LedgerEntry.id.desc()).limit(100)
         ).all()
+    category_rows = db.scalars(select(Category).order_by(Category.id)).all()
     return _render(request, "admin.html", user, db, rows=rows,
-                   viewed=viewed, viewed_entries=viewed_entries)
+                   viewed=viewed, viewed_entries=viewed_entries,
+                   category_rows=category_rows, invite_code=get_invite_code(db),
+                   **extra)
+
+
+@router.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request, view_user_id: int | None = None,
+               user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    if not user.is_admin:
+        return RedirectResponse("/", status_code=303)
+    return _admin_page(request, db, user, view_user_id)
+
+
+def _admin_action(request: Request, db: Session, user: User, fn, *args,
+                  success: str):
+    """Run an admin service call and re-render the admin page with the result."""
+    error = None
+    done = None
+    try:
+        fn(db, user, *args)
+        done = success
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    return _admin_page(request, db, user, error=error, done=done)
 
 
 @router.post("/admin/adjustments", response_class=HTMLResponse)
 def admin_adjustment(request: Request, user_id: int = Form(...), amount: int = Form(...),
                      reason: str = Form(""),
                      user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    error = None
-    done = False
-    try:
-        transactions.adjustment(db, user, user_id, amount, reason)
-        done = True
-    except (ValueError, PermissionError) as e:
-        error = str(e)
-    users = db.scalars(select(User).order_by(User.display_name)).all()
-    rows = [{"user": u, "balance": get_balance(db, u.id)} for u in users]
-    return _render(request, "admin.html", user, db, rows=rows, viewed=None,
-                   viewed_entries=[], error=error, done=done)
+    return _admin_action(request, db, user, transactions.adjustment, user_id, amount, reason,
+                         success="Adjustment recorded in the ledger. ⚖️")
+
+
+@router.post("/admin/users", response_class=HTMLResponse)
+def admin_create_user(request: Request, email: str = Form(""), display_name: str = Form(""),
+                      password: str = Form(""),
+                      user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _admin_action(request, db, user, admin_service.create_user,
+                         email, display_name, password,
+                         success=f"{display_name.strip() or 'User'} has joined the economy. 🎉")
+
+
+@router.post("/admin/users/{user_id}/password", response_class=HTMLResponse)
+def admin_set_password(request: Request, user_id: int, new_password: str = Form(""),
+                       user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _admin_action(request, db, user, admin_service.set_user_password,
+                         user_id, new_password, success="Password reset. 🔒")
+
+
+@router.post("/admin/users/{user_id}/delete", response_class=HTMLResponse)
+def admin_delete_user(request: Request, user_id: int,
+                      user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _admin_action(request, db, user, admin_service.delete_user, user_id,
+                         success="User deleted. Like they were never here. 🫥")
+
+
+@router.post("/admin/invite-code", response_class=HTMLResponse)
+def admin_invite_code(request: Request, code: str = Form(""),
+                      user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _admin_action(request, db, user, admin_service.update_invite_code, code,
+                         success="Invite code updated. Spread the word (selectively). 🤫")
+
+
+@router.post("/admin/categories", response_class=HTMLResponse)
+def admin_add_category(request: Request, name: str = Form(""),
+                       user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _admin_action(request, db, user, admin_service.add_category, name,
+                         success="Category added. 🏷️")
+
+
+@router.post("/admin/categories/{category_id}/delete", response_class=HTMLResponse)
+def admin_remove_category(request: Request, category_id: int,
+                          user: User = Depends(auth.get_current_user),
+                          db: Session = Depends(get_db)):
+    return _admin_action(request, db, user, admin_service.remove_category, category_id,
+                         success="Category removed. History keeps its receipts. 📜")

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Shop{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-900 mb-1">🛍️ The Shop</h1>
+<p class="text-stone-500 text-sm mb-5">Pre-priced favors from your friends. You have <b>{{ balance.spendable }} BP</b> burning a hole in your pocket.</p>
+
+{% if redeemed %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-emerald-800">Redeemed: “{{ redeemed }}” 🛍️</b>
+  <span class="text-emerald-600">Deal's on — mark it fulfilled on the Spend page once it happens.</span>
+</div>
+{% endif %}
+{% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+{% if menu_items %}
+<div class="grid sm:grid-cols-2 gap-3">
+  {% for item in menu_items %}
+  <div class="bg-white rounded-2xl shadow p-4 text-sm flex items-center gap-3">
+    <div class="flex-1 min-w-0">
+      <p class="font-medium truncate" title="{{ item.name }}">{{ item.name }}</p>
+      <p class="text-xs text-stone-400">by {{ item.owner.display_name }}{% if item.category %} · {{ item.category }}{% endif %}</p>
+    </div>
+    <form method="post" action="/items/{{ item.id }}/redeem">
+      <button class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap"
+        {% if balance.spendable < item.price %}disabled title="Not enough points" style="opacity:.5"{% endif %}>
+        {{ item.price }} BP 🍫
+      </button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-2xl shadow p-8 text-center text-stone-400 text-sm">
+  The shelves are empty. Nobody's offering anything yet — nudge a friend, or stock your own shelf under
+  <a href="/settings" class="text-amber-800 font-semibold hover:underline">Settings</a>.
+</div>
+{% endif %}
+
+<p class="text-xs text-stone-400 mt-5 text-center">Want to sell your own favors? Manage your offerings in <a href="/settings" class="text-amber-800 font-semibold hover:underline">⚙️ Settings</a>.</p>
+{% endblock %}

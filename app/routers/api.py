@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app import auth
 from app.db import get_db
 from app.models import Category, EntryType, Item, LedgerEntry, Redemption, User
+from app.services import admin as admin_service
 from app.services import transactions
 from app.services.ledger import get_balance
 
@@ -373,8 +374,72 @@ def api_adjustment(body: AdjustmentIn, user: User = Depends(auth.get_current_use
     return _entry_json(entry)
 
 
+# ---------- admin: user management ----------
+
+class AdminUserIn(BaseModel):
+    email: str
+    display_name: str
+    password: str
+
+
+class AdminPasswordIn(BaseModel):
+    new_password: str
+
+
+class InviteCodeIn(BaseModel):
+    code: str
+
+
+@router.post("/admin/users", status_code=201)
+def api_admin_create_user(body: AdminUserIn, user: User = Depends(auth.get_current_user),
+                          db: Session = Depends(get_db)):
+    u = _handle(admin_service.create_user, db, user, body.email,
+                body.display_name, body.password)
+    return {"id": u.id, "email": u.email, "display_name": u.display_name}
+
+
+@router.post("/admin/users/{user_id}/password")
+def api_admin_set_password(user_id: int, body: AdminPasswordIn,
+                           user: User = Depends(auth.get_current_user),
+                           db: Session = Depends(get_db)):
+    _handle(admin_service.set_user_password, db, user, user_id, body.new_password)
+    return {"ok": True}
+
+
+@router.post("/admin/users/{user_id}/delete")
+def api_admin_delete_user(user_id: int, user: User = Depends(auth.get_current_user),
+                          db: Session = Depends(get_db)):
+    _handle(admin_service.delete_user, db, user, user_id)
+    return {"ok": True}
+
+
+@router.post("/admin/invite-code")
+def api_admin_invite_code(body: InviteCodeIn, user: User = Depends(auth.get_current_user),
+                          db: Session = Depends(get_db)):
+    code = _handle(admin_service.update_invite_code, db, user, body.code)
+    return {"invite_code": code}
+
+
 # ---------- categories ----------
+
+class CategoryIn(BaseModel):
+    name: str
+
 
 @router.get("/categories")
 def api_categories(db: Session = Depends(get_db)):
     return [c.name for c in db.scalars(select(Category).order_by(Category.id)).all()]
+
+
+@router.post("/categories", status_code=201)
+def api_add_category(body: CategoryIn, user: User = Depends(auth.get_current_user),
+                     db: Session = Depends(get_db)):
+    c = _handle(admin_service.add_category, db, user, body.name)
+    return {"id": c.id, "name": c.name}
+
+
+@router.post("/categories/{category_id}/delete")
+def api_remove_category(category_id: int, user: User = Depends(auth.get_current_user),
+                        db: Session = Depends(get_db)):
+    _handle(admin_service.remove_category, db, user, category_id)
+    return {"ok": True}

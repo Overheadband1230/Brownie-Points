@@ -5,7 +5,7 @@
 <h1 class="text-2xl font-bold text-amber-900 mb-1">🛠️ Admin</h1>
 <p class="text-stone-500 text-sm mb-5">With great power comes great responsibility (and adjustments).</p>
 
-{% if done %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">Adjustment recorded in the ledger. ⚖️</p>{% endif %}
+{% if done %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">{{ done }}</p>{% endif %}
 {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
 
 <div class="bg-white rounded-2xl shadow p-6 mb-6">
@@ -27,11 +27,86 @@
           <td class="py-2 pr-4 text-right font-mono">{{ row.balance.spendable }}</td>
           <td class="py-2 pr-4 text-right font-mono text-amber-700">{{ row.balance.held }}</td>
           <td class="py-2 pr-4 text-right font-mono text-stone-500">{{ row.balance.lifetime_earned }}</td>
-          <td class="py-2 text-right"><a href="/admin?view_user_id={{ row.user.id }}" class="text-amber-800 hover:underline text-xs font-semibold">View ledger →</a></td>
+          <td class="py-2 text-right whitespace-nowrap">
+            <a href="/admin?view_user_id={{ row.user.id }}" class="text-amber-800 hover:underline text-xs font-semibold">Ledger</a>
+            {% if row.user.id != user.id %}
+            <form method="post" action="/admin/users/{{ row.user.id }}/delete" class="inline"
+              onsubmit="return confirm('Delete {{ row.user.display_name }}? Only possible if they have no history.')">
+              <button class="text-rose-600 hover:underline text-xs font-semibold ml-2">Delete</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-4 mb-6">
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-1">Add a user</h2>
+    <p class="text-xs text-stone-400 mb-4">Skip the invite code — create their account directly.</p>
+    <form method="post" action="/admin/users" class="space-y-3 text-sm">
+      <input name="email" type="email" required placeholder="Email"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <input name="display_name" type="text" required placeholder="Display name"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <input name="password" type="password" required minlength="8" placeholder="Password (8+ characters)"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg">Add user 🎉</button>
+    </form>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-1">Reset a password</h2>
+    <p class="text-xs text-stone-400 mb-4">For friends who forgot theirs. Tell them the new one out-of-band.</p>
+    <form method="post" id="reset-password-form" class="space-y-3 text-sm">
+      <select name="_user_id" required class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white"
+        onchange="this.form.action = '/admin/users/' + this.value + '/password'">
+        {% for row in rows %}<option value="{{ row.user.id }}">{{ row.user.display_name }}</option>{% endfor %}
+      </select>
+      <input name="new_password" type="password" required minlength="8" placeholder="New password (8+ characters)"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg">Reset 🔒</button>
+    </form>
+    <script>
+      (() => {
+        const f = document.getElementById('reset-password-form');
+        f.action = '/admin/users/' + f.elements['_user_id'].value + '/password';
+      })();
+    </script>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-1">Invite code</h2>
+    <p class="text-xs text-stone-400 mb-4">What new folks must type to sign up. Changing it doesn't affect existing accounts.</p>
+    <form method="post" action="/admin/invite-code" class="flex gap-3 text-sm">
+      <input name="code" type="text" required value="{{ invite_code }}"
+        class="flex-1 border border-stone-300 rounded-lg px-3 py-2 font-mono">
+      <button class="bg-amber-800 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg">Save 🤫</button>
+    </form>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-1">Categories</h2>
+    <p class="text-xs text-stone-400 mb-4">Removing one keeps it on old ledger entries — it just leaves the pickers.</p>
+    <div class="flex flex-wrap gap-2 mb-4">
+      {% for c in category_rows %}
+      <form method="post" action="/admin/categories/{{ c.id }}/delete" class="inline"
+        onsubmit="return confirm('Remove “{{ c.name }}” from the pickers?')">
+        <button class="group flex items-center gap-1.5 bg-stone-100 hover:bg-rose-50 border border-stone-200 hover:border-rose-200 rounded-full px-3 py-1 text-xs font-medium"
+          title="Remove {{ c.name }}">
+          {{ c.name }} <span class="text-stone-400 group-hover:text-rose-500">✕</span>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    <form method="post" action="/admin/categories" class="flex gap-3 text-sm">
+      <input name="name" type="text" required placeholder="New category"
+        class="flex-1 border border-stone-300 rounded-lg px-3 py-2">
+      <button class="bg-amber-800 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg">Add 🏷️</button>
+    </form>
   </div>
 </div>
 

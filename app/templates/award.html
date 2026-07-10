@@ -11,6 +11,12 @@
     <p class="font-bold text-emerald-800">{{ awarded.name }} has been awarded {{ awarded.amount }} Brownie Point{{ 's' if awarded.amount != 1 }}!</p>
     <p class="text-sm text-emerald-600 mt-1">May they spend it wisely.</p>
   </div>
+  <script>
+    if (typeof confetti === 'function') {
+      confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } });
+      setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { y: 0.4 } }), 400);
+    }
+  </script>
   {% endif %}
 
   {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}

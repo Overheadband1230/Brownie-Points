@@ -3,6 +3,27 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
+{% if new_awards %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-6 text-center">
+  <div class="text-3xl mb-1">🍫✨</div>
+  <p class="font-bold text-emerald-800">
+    While you were away: +{{ new_awards | sum(attribute='amount') }} Brownie Point{{ 's' if new_awards | sum(attribute='amount') != 1 }}!
+  </p>
+  <ul class="text-sm text-emerald-700 mt-1">
+    {% for e in new_awards %}
+    <li>+{{ e.amount }} from {{ e.counterparty.display_name if e.counterparty else 'someone' }} — “{{ e.reason }}”</li>
+    {% endfor %}
+  </ul>
+</div>
+<script>
+  document.cookie = "bp_seen_award={{ latest_award_id }};path=/;max-age=31536000;samesite=lax";
+  if (typeof confetti === 'function') {
+    confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } });
+    setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { y: 0.4 } }), 400);
+  }
+</script>
+{% endif %}
+
 <div class="grid sm:grid-cols-2 gap-4 mb-6">
   <div class="bg-white rounded-2xl shadow p-6 text-center">
     <p class="text-sm text-stone-500">Spendable balance</p>
@@ -27,6 +48,24 @@
     <li class="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2">
       <span><b>{{ r.requester.display_name }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
       <a href="/spend" class="text-amber-800 font-semibold whitespace-nowrap hover:underline">Review →</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if my_open_requests %}
+<div class="bg-sky-50 border border-sky-200 rounded-2xl p-4 mb-6">
+  <h2 class="font-bold text-sky-900 mb-2">📨 Your requests in flight ({{ my_open_requests|length }})</h2>
+  <ul class="space-y-2">
+    {% for r in my_open_requests %}
+    <li class="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2">
+      <span>
+        {{ status_chip(r.status) }}
+        Asking <b>{{ r.grantor.display_name }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b>
+        {% if r.status == 'APPROVED' %}<span class="text-sky-600">· approved, waiting to happen</span>{% endif %}
+      </span>
+      <a href="/spend" class="text-sky-800 font-semibold whitespace-nowrap hover:underline">View →</a>
     </li>
     {% endfor %}
   </ul>
