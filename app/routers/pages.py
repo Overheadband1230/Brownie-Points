@@ -72,9 +72,10 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
 
 @router.post("/register")
 def register_submit(request: Request, email: str = Form(...), display_name: str = Form(...),
-                    password: str = Form(...), db: Session = Depends(get_db)):
+                    password: str = Form(...), invite_code: str = Form(""),
+                    db: Session = Depends(get_db)):
     try:
-        user = auth.register_user(db, email, display_name, password)
+        user = auth.register_user(db, email, display_name, password, invite_code)
     except ValueError as e:
         return templates.TemplateResponse(
             request, "login.html",
@@ -261,6 +262,44 @@ def cancel(request: Request, redemption_id: int,
 def fulfill(request: Request, redemption_id: int,
             user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return _redemption_action(request, db, user, transactions.fulfill_redemption, redemption_id)
+
+
+# ---------- settings ----------
+
+@router.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, user: User = Depends(auth.get_current_user),
+                  db: Session = Depends(get_db)):
+    return _render(request, "settings.html", user, db)
+
+
+@router.post("/settings/account", response_class=HTMLResponse)
+def settings_account(request: Request, email: str = Form(""), display_name: str = Form(""),
+                     current_password: str = Form(""),
+                     user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    saved = False
+    try:
+        auth.update_account(db, user, email, display_name, current_password)
+        saved = True
+    except ValueError as e:
+        error = str(e)
+    return _render(request, "settings.html", user, db,
+                   account_error=error, account_saved=saved)
+
+
+@router.post("/settings/password", response_class=HTMLResponse)
+def settings_password(request: Request, current_password: str = Form(""),
+                      new_password: str = Form(""),
+                      user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    saved = False
+    try:
+        auth.change_password(db, user, current_password, new_password)
+        saved = True
+    except ValueError as e:
+        error = str(e)
+    return _render(request, "settings.html", user, db,
+                   password_error=error, password_saved=saved)
 
 
 # ---------- ledger ----------

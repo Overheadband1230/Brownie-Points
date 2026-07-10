@@ -10,7 +10,7 @@ docker compose up
 
 Open **http://localhost:8000**. That's it — the database creates itself on first boot, and the **first person to register becomes the admin**. Data survives restarts (it lives in a Docker volume).
 
-Before exposing it beyond localhost, copy `.env.example` to `.env` and set a real `SECRET_KEY`.
+Signing up requires an **invite code** (default: `brownie-batch`) — share it with the friends you want in your economy. Before exposing the app beyond localhost, copy `.env.example` to `.env` and set a real `SECRET_KEY` and your own `INVITE_CODE`.
 
 ## How it works
 

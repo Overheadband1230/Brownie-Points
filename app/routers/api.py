@@ -28,6 +28,7 @@ class RegisterIn(BaseModel):
     email: str
     display_name: str
     password: str
+    invite_code: str = ""
 
 
 class LoginIn(BaseModel):
@@ -37,7 +38,8 @@ class LoginIn(BaseModel):
 
 @router.post("/auth/register")
 def api_register(body: RegisterIn, response: Response, db: Session = Depends(get_db)):
-    user = _handle(auth.register_user, db, body.email, body.display_name, body.password)
+    user = _handle(auth.register_user, db, body.email, body.display_name,
+                   body.password, body.invite_code)
     auth.set_session_cookie(response, user.id)
     return {"id": user.id, "display_name": user.display_name, "is_admin": user.is_admin}
 
@@ -67,6 +69,32 @@ def api_me(user: User = Depends(auth.get_current_user), db: Session = Depends(ge
         "lifetime_earned": balance.lifetime_earned,
         "held": balance.held,
     }
+
+
+class AccountIn(BaseModel):
+    email: str
+    display_name: str
+    current_password: str
+
+
+class PasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/me/account")
+def api_update_account(body: AccountIn, user: User = Depends(auth.get_current_user),
+                       db: Session = Depends(get_db)):
+    u = _handle(auth.update_account, db, user, body.email, body.display_name,
+                body.current_password)
+    return {"id": u.id, "email": u.email, "display_name": u.display_name}
+
+
+@router.post("/me/password")
+def api_change_password(body: PasswordIn, user: User = Depends(auth.get_current_user),
+                        db: Session = Depends(get_db)):
+    _handle(auth.change_password, db, user, body.current_password, body.new_password)
+    return {"ok": True}
 
 
 # ---------- users ----------

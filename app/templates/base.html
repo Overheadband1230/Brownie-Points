@@ -26,7 +26,7 @@
         {% if user.is_admin %}<a href="/admin" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Admin</a>{% endif %}
       </div>
       <div class="ml-auto flex items-center gap-3 text-sm">
-        <span class="hidden sm:inline text-amber-200">{{ user.display_name }}</span>
+        <a href="/settings" class="text-amber-200 hover:text-white" title="Settings">{{ user.display_name }} ⚙️</a>
         <a href="/logout" class="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-700">Logout</a>
       </div>
     </div>

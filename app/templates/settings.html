@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-amber-900 mb-1">⚙️ Settings</h1>
+  <p class="text-stone-500 text-sm mb-5">Your account, your rules.</p>
+
+  <div class="bg-white rounded-2xl shadow p-6 mb-6">
+    <h2 class="font-bold text-lg mb-1">Account info</h2>
+    <p class="text-xs text-stone-400 mb-4">Your email is also your login. Confirm with your password to change either.</p>
+    {% if account_saved %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">Saved! You're still you, just updated. ✅</p>{% endif %}
+    {% if account_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ account_error }}</p>{% endif %}
+    <form method="post" action="/settings/account" class="space-y-3 text-sm">
+      <div>
+        <label class="block font-medium mb-1">Email</label>
+        <input name="email" type="email" required value="{{ user.email }}"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      </div>
+      <div>
+        <label class="block font-medium mb-1">Display name</label>
+        <input name="display_name" type="text" required value="{{ user.display_name }}"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      </div>
+      <div>
+        <label class="block font-medium mb-1">Current password</label>
+        <input name="current_password" type="password" required placeholder="To confirm it's you"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      </div>
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">Save changes</button>
+    </form>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-4">Change password</h2>
+    {% if password_saved %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">Password changed. 🔒</p>{% endif %}
+    {% if password_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ password_error }}</p>{% endif %}
+    <form method="post" action="/settings/password" class="space-y-3 text-sm">
+      <div>
+        <label class="block font-medium mb-1">Current password</label>
+        <input name="current_password" type="password" required
+          class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      </div>
+      <div>
+        <label class="block font-medium mb-1">New password</label>
+        <input name="new_password" type="password" required minlength="8" placeholder="8+ characters"
+          class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      </div>
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">Change password</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

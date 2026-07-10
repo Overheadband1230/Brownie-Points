@@ -5,6 +5,7 @@ import tempfile
 _tmpdir = tempfile.mkdtemp(prefix="brownie-test-")
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_tmpdir, 'test.db')}"
 os.environ["SECRET_KEY"] = "test-secret"
+os.environ["INVITE_CODE"] = "test-invite"
 
 import pytest
 from fastapi.testclient import TestClient

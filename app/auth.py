@@ -4,7 +4,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import SECRET_KEY, SESSION_MAX_AGE_SECONDS
+from app.config import INVITE_CODE, SECRET_KEY, SESSION_MAX_AGE_SECONDS
 from app.db import get_db
 from app.models import User
 
@@ -53,17 +53,26 @@ def get_current_user(user: User | None = Depends(get_optional_user)) -> User:
     return user
 
 
-def register_user(db: Session, email: str, display_name: str, password: str) -> User:
+def _validate_email(db: Session, email: str, exclude_user_id: int | None = None) -> str:
     email = email.strip().lower()
-    display_name = display_name.strip()
     if not email or "@" not in email:
         raise ValueError("That doesn't look like an email address.")
+    existing = db.scalar(select(User).where(User.email == email))
+    if existing is not None and existing.id != exclude_user_id:
+        raise ValueError("That email is already registered.")
+    return email
+
+
+def register_user(db: Session, email: str, display_name: str, password: str,
+                  invite_code: str = "") -> User:
+    if invite_code.strip() != INVITE_CODE:
+        raise ValueError("Wrong invite code. No brownies for strangers. 🍫")
+    email = _validate_email(db, email)
+    display_name = display_name.strip()
     if not display_name:
         raise ValueError("Pick a display name — it's what your friends will see.")
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters.")
-    if db.scalar(select(User).where(User.email == email)) is not None:
-        raise ValueError("That email is already registered. Try logging in.")
 
     # First registered user becomes admin.
     is_first = db.scalar(select(func.count(User.id))) == 0
@@ -74,6 +83,31 @@ def register_user(db: Session, email: str, display_name: str, password: str) -> 
         is_admin=is_first,
     )
     db.add(user)
+    db.commit()
+    return user
+
+
+def update_account(db: Session, user: User, email: str, display_name: str,
+                   current_password: str) -> User:
+    if not verify_password(current_password, user.password_hash):
+        raise ValueError("Current password is incorrect.")
+    email = _validate_email(db, email, exclude_user_id=user.id)
+    display_name = display_name.strip()
+    if not display_name:
+        raise ValueError("Display name can't be empty.")
+    user.email = email
+    user.display_name = display_name
+    db.commit()
+    return user
+
+
+def change_password(db: Session, user: User, current_password: str,
+                    new_password: str) -> User:
+    if not verify_password(current_password, user.password_hash):
+        raise ValueError("Current password is incorrect.")
+    if len(new_password) < 8:
+        raise ValueError("New password must be at least 8 characters.")
+    user.password_hash = hash_password(new_password)
     db.commit()
     return user
 

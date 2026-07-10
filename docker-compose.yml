@@ -8,6 +8,7 @@ services:
     environment:
       - DATABASE_URL=sqlite:////data/brownie.db
       - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-string}   # signs session cookies
+      - INVITE_CODE=${INVITE_CODE:-brownie-batch}                # required to sign up
     restart: unless-stopped
 
 volumes:

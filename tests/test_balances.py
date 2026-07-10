@@ -9,8 +9,8 @@ from app.services.ledger import get_balance
 
 @pytest.fixture
 def users(db):
-    alice = register_user(db, "alice@example.com", "Alice", "password1")
-    bob = register_user(db, "bob@example.com", "Bob", "password1")
+    alice = register_user(db, "alice@example.com", "Alice", "password1", "test-invite")
+    bob = register_user(db, "bob@example.com", "Bob", "password1", "test-invite")
     return alice, bob
 
 

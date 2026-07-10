@@ -1,9 +1,10 @@
 """API-level lifecycle tests via TestClient (spec §12 acceptance criteria)."""
 
 
-def register(client, email, name, password="password1"):
+def register(client, email, name, password="password1", invite_code="test-invite"):
     r = client.post("/api/auth/register",
-                    json={"email": email, "display_name": name, "password": password})
+                    json={"email": email, "display_name": name, "password": password,
+                          "invite_code": invite_code})
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -206,6 +207,55 @@ def test_items_api_lifecycle(client):
     login(client, "bob@example.com")
     assert me(client)["spendable_balance"] == 2
     assert me(client)["held"] == 0
+
+
+def test_register_requires_invite_code(client):
+    r = client.post("/api/auth/register", json={
+        "email": "x@example.com", "display_name": "X", "password": "password1"})
+    assert r.status_code == 400
+    assert "invite code" in r.json()["detail"].lower()
+
+    r = client.post("/api/auth/register", json={
+        "email": "x@example.com", "display_name": "X", "password": "password1",
+        "invite_code": "wrong"})
+    assert r.status_code == 400
+
+    register(client, "x@example.com", "X")  # correct code works
+
+
+def test_account_settings(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")  # logged in as Bob
+
+    # Wrong current password rejected.
+    r = client.post("/api/me/account", json={
+        "email": "bob2@example.com", "display_name": "Bobby", "current_password": "nope"})
+    assert r.status_code == 400
+
+    # Can't take someone else's email.
+    r = client.post("/api/me/account", json={
+        "email": "alice@example.com", "display_name": "Bobby", "current_password": "password1"})
+    assert r.status_code == 400
+
+    # Valid update changes email + display name; session stays valid.
+    r = client.post("/api/me/account", json={
+        "email": "bob2@example.com", "display_name": "Bobby", "current_password": "password1"})
+    assert r.status_code == 200
+    info = me(client)
+    assert info["email"] == "bob2@example.com"
+    assert info["display_name"] == "Bobby"
+
+    # Password change: wrong current rejected, then works; new login OK.
+    assert client.post("/api/me/password", json={
+        "current_password": "nope", "new_password": "newpassword1"}).status_code == 400
+    assert client.post("/api/me/password", json={
+        "current_password": "password1", "new_password": "newpassword1"}).status_code == 200
+
+    client.cookies.clear()
+    assert client.post("/api/auth/login", json={
+        "email": "bob2@example.com", "password": "password1"}).status_code == 400
+    assert client.post("/api/auth/login", json={
+        "email": "bob2@example.com", "password": "newpassword1"}).status_code == 200
 
 
 def test_categories_seeded(client):
