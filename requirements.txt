@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+bcrypt
+itsdangerous
+jinja2
+python-multipart

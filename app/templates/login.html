@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto mt-10">
+  <div class="text-center mb-6">
+    <div class="text-5xl mb-2">🍫</div>
+    <h1 class="text-2xl font-bold text-amber-900">Brownie Points</h1>
+    <p class="text-stone-500 text-sm mt-1">A tiny economy of goodwill between friends.</p>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6" x-data>
+    <div class="flex mb-5 rounded-xl bg-stone-100 p-1 text-sm font-medium" id="tabs">
+      <button onclick="showTab('login')" id="tab-login"
+        class="flex-1 py-2 rounded-lg {% if tab != 'register' %}bg-white shadow{% endif %}">Log in</button>
+      <button onclick="showTab('register')" id="tab-register"
+        class="flex-1 py-2 rounded-lg {% if tab == 'register' %}bg-white shadow{% endif %}">Sign up</button>
+    </div>
+
+    <form method="post" action="/login" id="panel-login" class="space-y-3 {% if tab == 'register' %}hidden{% endif %}">
+      {% if login_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-2">{{ login_error }}</p>{% endif %}
+      <input name="email" type="email" required placeholder="Email" value="{{ email or '' }}"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <input name="password" type="password" required placeholder="Password"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg">
+        Let me in 🍪
+      </button>
+    </form>
+
+    <form method="post" action="/register" id="panel-register" class="space-y-3 {% if tab != 'register' %}hidden{% endif %}">
+      {% if register_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-2">{{ register_error }}</p>{% endif %}
+      <input name="email" type="email" required placeholder="Email" value="{{ email or '' }}"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <input name="display_name" type="text" required placeholder="Display name (what friends see)" value="{{ display_name or '' }}"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <input name="password" type="password" required minlength="8" placeholder="Password (8+ characters)"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg">
+        Join the economy 🍫
+      </button>
+      <p class="text-xs text-stone-400 text-center">First one in becomes the admin. Power corrupts.</p>
+    </form>
+  </div>
+</div>
+<script>
+function showTab(which) {
+  for (const t of ['login', 'register']) {
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== which);
+    document.getElementById('tab-' + t).classList.toggle('bg-white', t === which);
+    document.getElementById('tab-' + t).classList.toggle('shadow', t === which);
+  }
+}
+</script>
+{% endblock %}

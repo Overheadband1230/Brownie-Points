@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import type_chip, amount_cell, status_chip %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="grid sm:grid-cols-2 gap-4 mb-6">
+  <div class="bg-white rounded-2xl shadow p-6 text-center">
+    <p class="text-sm text-stone-500">Spendable balance</p>
+    <p class="text-6xl font-black text-amber-900 my-2">{{ balance.spendable }}</p>
+    <p class="text-xs text-stone-400">Brownie Points. Spend wisely. 🍫</p>
+    {% if balance.held %}
+      <p class="text-xs text-amber-600 mt-1">({{ balance.held }} on hold in pending requests)</p>
+    {% endif %}
+  </div>
+  <div class="bg-white rounded-2xl shadow p-6 flex flex-col justify-center gap-3">
+    <p class="text-sm text-stone-500">Lifetime earned: <span class="font-bold text-stone-800">{{ balance.lifetime_earned }}</span></p>
+    <a href="/award" class="block text-center bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">🎁 Award a point</a>
+    <a href="/spend" class="block text-center bg-white border-2 border-amber-800 text-amber-900 hover:bg-amber-50 font-semibold py-2.5 rounded-xl">💸 Spend a point</a>
+  </div>
+</div>
+
+{% if pending %}
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
+  <h2 class="font-bold text-amber-900 mb-2">⏳ Waiting on you ({{ pending|length }})</h2>
+  <ul class="space-y-2">
+    {% for r in pending %}
+    <li class="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2">
+      <span><b>{{ r.requester.display_name }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
+      <a href="/spend" class="text-amber-800 font-semibold whitespace-nowrap hover:underline">Review →</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="bg-white rounded-2xl shadow p-6">
+  <h2 class="font-bold text-lg mb-3">Recent activity</h2>
+  {% if recent %}
+  <ul class="divide-y divide-stone-100">
+    {% for e in recent %}
+    <li class="py-2.5 flex items-center gap-3 text-sm">
+      {{ type_chip(e.entry_type) }}
+      <span class="flex-1 truncate">
+        {% if e.user_id == user.id %}
+          {{ e.reason }}{% if e.counterparty %} <span class="text-stone-400">· {{ e.counterparty.display_name }}</span>{% endif %}
+        {% else %}
+          <span class="text-stone-400">You →</span> {{ e.reason }}
+        {% endif %}
+      </span>
+      {% if e.user_id == user.id %}{{ amount_cell(e.amount) }}{% endif %}
+      <span class="text-xs text-stone-400 whitespace-nowrap">{{ e.created_at.strftime('%b %d') }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-stone-400 text-sm">Nothing yet. Go do something nice for someone — or guilt them into awarding you a point. 🍫</p>
+  {% endif %}
+</div>
+
+{% endblock %}

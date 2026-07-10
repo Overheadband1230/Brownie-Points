@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-900 mb-1">📊 Reports</h1>
+<p class="text-stone-500 text-sm mb-5">The state of your goodwill economy.</p>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" id="totals">
+  <div class="bg-white rounded-2xl shadow p-4 text-center">
+    <p class="text-xs text-stone-400 uppercase">Earned</p>
+    <p class="text-2xl font-black text-emerald-700" id="t-awarded">–</p>
+  </div>
+  <div class="bg-white rounded-2xl shadow p-4 text-center">
+    <p class="text-xs text-stone-400 uppercase">Spent</p>
+    <p class="text-2xl font-black text-rose-700" id="t-spent">–</p>
+  </div>
+  <div class="bg-white rounded-2xl shadow p-4 text-center">
+    <p class="text-xs text-stone-400 uppercase">On hold</p>
+    <p class="text-2xl font-black text-amber-700" id="t-held">–</p>
+  </div>
+  <div class="bg-white rounded-2xl shadow p-4 text-center">
+    <p class="text-xs text-stone-400 uppercase">Spendable</p>
+    <p class="text-2xl font-black text-amber-900" id="t-spendable">–</p>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-4 mb-6">
+  <div class="bg-white rounded-2xl shadow p-5">
+    <h2 class="font-bold mb-3">Balance over time</h2>
+    <canvas id="chart-balance"></canvas>
+    <p id="empty-balance" class="hidden text-stone-400 text-sm text-center py-6">No activity yet — flat as a brownie. 🍫</p>
+  </div>
+  <div class="bg-white rounded-2xl shadow p-5">
+    <h2 class="font-bold mb-3">Points earned by category</h2>
+    <canvas id="chart-category"></canvas>
+    <p id="empty-category" class="hidden text-stone-400 text-sm text-center py-6">No categorized awards yet.</p>
+  </div>
+</div>
+
+<div class="bg-white rounded-2xl shadow p-5">
+  <h2 class="font-bold mb-3">Who owes whom</h2>
+  <p class="text-xs text-stone-400 mb-3">Net points per person: what they've awarded you minus what you've cashed in with them.</p>
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-xs text-stone-400 uppercase border-b border-stone-100">
+        <th class="py-2">Person</th><th class="py-2 text-right">Net BP</th>
+      </tr>
+    </thead>
+    <tbody id="counterparty-rows" class="divide-y divide-stone-100"></tbody>
+  </table>
+  <p id="empty-counterparty" class="hidden text-stone-400 text-sm text-center py-4">No transactions with anyone yet. Time to mingle.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+fetch('/api/reports/summary').then(r => r.json()).then(data => {
+  const t = data.totals;
+  document.getElementById('t-awarded').textContent = t.awarded;
+  document.getElementById('t-spent').textContent = t.spent;
+  document.getElementById('t-held').textContent = t.held;
+  document.getElementById('t-spendable').textContent = t.spendable;
+
+  if (data.points_over_time.length) {
+    new Chart(document.getElementById('chart-balance'), {
+      type: 'line',
+      data: {
+        labels: data.points_over_time.map(p => p.at.slice(0, 10)),
+        datasets: [{
+          label: 'Spendable balance',
+          data: data.points_over_time.map(p => p.balance),
+          borderColor: '#92400e',
+          backgroundColor: 'rgba(146,64,14,0.1)',
+          fill: true,
+          tension: 0.25,
+        }],
+      },
+      options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } },
+    });
+  } else {
+    document.getElementById('chart-balance').classList.add('hidden');
+    document.getElementById('empty-balance').classList.remove('hidden');
+  }
+
+  const cats = Object.keys(data.by_category);
+  if (cats.length) {
+    new Chart(document.getElementById('chart-category'), {
+      type: 'doughnut',
+      data: {
+        labels: cats,
+        datasets: [{
+          data: cats.map(c => data.by_category[c]),
+          backgroundColor: ['#92400e', '#b45309', '#d97706', '#f59e0b', '#fbbf24', '#fcd34d', '#78350f'],
+        }],
+      },
+    });
+  } else {
+    document.getElementById('chart-category').classList.add('hidden');
+    document.getElementById('empty-category').classList.remove('hidden');
+  }
+
+  const rows = document.getElementById('counterparty-rows');
+  if (data.net_by_counterparty.length) {
+    for (const c of data.net_by_counterparty) {
+      const tr = document.createElement('tr');
+      const sign = c.net > 0 ? '+' : '';
+      const color = c.net > 0 ? 'text-emerald-700' : (c.net < 0 ? 'text-rose-700' : 'text-stone-500');
+      tr.innerHTML = `<td class="py-2"></td><td class="py-2 text-right font-mono font-semibold ${color}">${sign}${c.net}</td>`;
+      tr.children[0].textContent = c.display_name;
+      rows.appendChild(tr);
+    }
+  } else {
+    document.getElementById('empty-counterparty').classList.remove('hidden');
+  }
+});
+</script>
+{% endblock %}

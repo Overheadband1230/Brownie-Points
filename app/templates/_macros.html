@@ -1,0 +1,27 @@
+{% macro status_chip(status) -%}
+  {% set colors = {
+    'PENDING':   'bg-amber-100 text-amber-800',
+    'APPROVED':  'bg-sky-100 text-sky-800',
+    'FULFILLED': 'bg-emerald-100 text-emerald-800',
+    'DENIED':    'bg-rose-100 text-rose-800',
+    'CANCELLED': 'bg-stone-200 text-stone-600',
+  } %}
+  <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ colors.get(status, 'bg-stone-100') }}">{{ status.title() }}</span>
+{%- endmacro %}
+
+{% macro amount_cell(amount) -%}
+  <span class="font-mono font-semibold {{ 'text-emerald-700' if amount > 0 else 'text-rose-700' }}">
+    {{ '+' if amount > 0 }}{{ amount }}
+  </span>
+{%- endmacro %}
+
+{% macro type_chip(entry_type) -%}
+  {% set colors = {
+    'AWARD':      'bg-emerald-100 text-emerald-800',
+    'HOLD':       'bg-amber-100 text-amber-800',
+    'RELEASE':    'bg-sky-100 text-sky-800',
+    'DEBIT':      'bg-rose-100 text-rose-800',
+    'ADJUSTMENT': 'bg-violet-100 text-violet-800',
+  } %}
+  <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ colors.get(entry_type, 'bg-stone-100') }}">{{ entry_type.title() }}</span>
+{%- endmacro %}

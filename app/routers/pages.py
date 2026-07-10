@@ -1,0 +1,334 @@
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from app import auth
+from app.db import get_db
+from app.models import Category, Item, LedgerEntry, Redemption, RedemptionStatus, User
+from app.services import transactions
+from app.services.ledger import get_balance
+
+router = APIRouter()
+
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+
+PAGE_SIZE = 25
+
+
+def _categories(db: Session) -> list[str]:
+    return [c.name for c in db.scalars(select(Category).order_by(Category.id)).all()]
+
+
+def _users_except(db: Session, user_id: int) -> list[User]:
+    return db.scalars(
+        select(User).where(User.id != user_id).order_by(User.display_name)
+    ).all()
+
+
+def _pending_for_me(db: Session, user: User) -> list[Redemption]:
+    return db.scalars(
+        select(Redemption)
+        .where(Redemption.grantor_id == user.id,
+               Redemption.status == RedemptionStatus.PENDING)
+        .order_by(Redemption.created_at.desc())
+    ).all()
+
+
+def _render(request: Request, name: str, user: User | None, db: Session | None, **ctx):
+    base = {"request": request, "user": user}
+    if user is not None and db is not None:
+        base["balance"] = get_balance(db, user.id)
+        base["pending_count"] = len(_pending_for_me(db, user))
+    return templates.TemplateResponse(request, name, {**base, **ctx})
+
+
+# ---------- auth pages ----------
+
+@router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, user: User | None = Depends(auth.get_optional_user)):
+    if user:
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request, "login.html", {"request": request, "user": None})
+
+
+@router.post("/login")
+def login_submit(request: Request, email: str = Form(...), password: str = Form(...),
+                 db: Session = Depends(get_db)):
+    try:
+        user = auth.authenticate(db, email, password)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"request": request, "user": None, "login_error": str(e), "email": email},
+            status_code=400,
+        )
+    response = RedirectResponse("/", status_code=303)
+    auth.set_session_cookie(response, user.id)
+    return response
+
+
+@router.post("/register")
+def register_submit(request: Request, email: str = Form(...), display_name: str = Form(...),
+                    password: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        user = auth.register_user(db, email, display_name, password)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"request": request, "user": None, "register_error": str(e),
+             "email": email, "display_name": display_name, "tab": "register"},
+            status_code=400,
+        )
+    response = RedirectResponse("/", status_code=303)
+    auth.set_session_cookie(response, user.id)
+    return response
+
+
+@router.get("/logout")
+def logout():
+    response = RedirectResponse("/login", status_code=303)
+    auth.clear_session_cookie(response)
+    return response
+
+
+# ---------- dashboard ----------
+
+@router.get("/", response_class=HTMLResponse)
+def dashboard(request: Request, user: User | None = Depends(auth.get_optional_user),
+              db: Session = Depends(get_db)):
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    recent = db.scalars(
+        select(LedgerEntry)
+        .where(or_(LedgerEntry.user_id == user.id, LedgerEntry.counterparty_id == user.id))
+        .order_by(LedgerEntry.created_at.desc(), LedgerEntry.id.desc())
+        .limit(10)
+    ).all()
+    return _render(request, "dashboard.html", user, db,
+                   recent=recent, pending=_pending_for_me(db, user))
+
+
+# ---------- award ----------
+
+@router.get("/award", response_class=HTMLResponse)
+def award_page(request: Request, user: User = Depends(auth.get_current_user),
+               db: Session = Depends(get_db)):
+    return _render(request, "award.html", user, db,
+                   users=_users_except(db, user.id), categories=_categories(db))
+
+
+@router.post("/award", response_class=HTMLResponse)
+def award_submit(request: Request, to_user_id: int = Form(...), amount: int = Form(...),
+                 reason: str = Form(""), category: str = Form(""),
+                 user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    try:
+        transactions.award(db, user, to_user_id, amount, reason, category or None)
+    except ValueError as e:
+        return _render(request, "award.html", user, db,
+                       users=_users_except(db, user.id), categories=_categories(db),
+                       error=str(e), form={"to_user_id": to_user_id, "amount": amount,
+                                           "reason": reason, "category": category})
+    recipient = db.get(User, to_user_id)
+    return _render(request, "award.html", user, db,
+                   users=_users_except(db, user.id), categories=_categories(db),
+                   awarded={"name": recipient.display_name, "amount": amount})
+
+
+# ---------- spend / redemptions ----------
+
+def _redemptions_context(db: Session, user: User) -> dict:
+    mine = db.scalars(
+        select(Redemption).where(Redemption.requester_id == user.id)
+        .order_by(Redemption.created_at.desc())
+    ).all()
+    for_me = db.scalars(
+        select(Redemption).where(Redemption.grantor_id == user.id)
+        .order_by(Redemption.created_at.desc())
+    ).all()
+    return {"mine": mine, "for_me": for_me}
+
+
+def _items_context(db: Session, user: User) -> dict:
+    active = db.scalars(
+        select(Item).where(Item.is_active == True)  # noqa: E712
+        .order_by(Item.owner_id, Item.price)
+    ).all()
+    return {
+        "menu_items": [i for i in active if i.owner_id != user.id],
+        "my_items": [i for i in active if i.owner_id == user.id],
+    }
+
+
+def _spend_page(request: Request, db: Session, user: User, **extra):
+    return _render(request, "spend.html", user, db,
+                   users=_users_except(db, user.id), categories=_categories(db),
+                   **_items_context(db, user), **_redemptions_context(db, user),
+                   **extra)
+
+
+@router.get("/spend", response_class=HTMLResponse)
+def spend_page(request: Request, user: User = Depends(auth.get_current_user),
+               db: Session = Depends(get_db)):
+    return _spend_page(request, db, user)
+
+
+@router.post("/spend", response_class=HTMLResponse)
+def spend_submit(request: Request, grantor_id: int = Form(...), amount: int = Form(...),
+                 reason: str = Form(""), category: str = Form(""),
+                 user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    created = False
+    try:
+        transactions.create_redemption(db, user, grantor_id, amount, reason, category or None)
+        created = True
+    except ValueError as e:
+        error = str(e)
+    return _spend_page(request, db, user, error=error, created=created)
+
+
+# ---------- items (the menu) ----------
+
+@router.post("/items", response_class=HTMLResponse)
+def item_create(request: Request, name: str = Form(""), price: int = Form(...),
+                category: str = Form(""),
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    listed = None
+    try:
+        item = transactions.create_item(db, user, name, price, category or None)
+        listed = item.name
+    except ValueError as e:
+        error = str(e)
+    return _spend_page(request, db, user, error=error, listed=listed)
+
+
+@router.post("/items/{item_id}/delist", response_class=HTMLResponse)
+def item_delist(request: Request, item_id: int,
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    try:
+        transactions.delist_item(db, user, item_id)
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    return _spend_page(request, db, user, error=error)
+
+
+@router.post("/items/{item_id}/redeem", response_class=HTMLResponse)
+def item_redeem(request: Request, item_id: int,
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    redeemed = None
+    try:
+        redemption = transactions.redeem_item(db, user, item_id)
+        redeemed = redemption.reason
+    except ValueError as e:
+        error = str(e)
+    return _spend_page(request, db, user, error=error, redeemed=redeemed)
+
+
+def _redemption_action(request: Request, db: Session, user: User, action, redemption_id: int):
+    error = None
+    try:
+        action(db, user, redemption_id)
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    return _render(request, "partials/redemption_lists.html", user, db,
+                   error=error, **_redemptions_context(db, user))
+
+
+@router.post("/redemptions/{redemption_id}/approve", response_class=HTMLResponse)
+def approve(request: Request, redemption_id: int,
+            user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _redemption_action(request, db, user, transactions.approve_redemption, redemption_id)
+
+
+@router.post("/redemptions/{redemption_id}/deny", response_class=HTMLResponse)
+def deny(request: Request, redemption_id: int,
+         user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _redemption_action(request, db, user, transactions.deny_redemption, redemption_id)
+
+
+@router.post("/redemptions/{redemption_id}/cancel", response_class=HTMLResponse)
+def cancel(request: Request, redemption_id: int,
+           user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _redemption_action(request, db, user, transactions.cancel_redemption, redemption_id)
+
+
+@router.post("/redemptions/{redemption_id}/fulfill", response_class=HTMLResponse)
+def fulfill(request: Request, redemption_id: int,
+            user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _redemption_action(request, db, user, transactions.fulfill_redemption, redemption_id)
+
+
+# ---------- ledger ----------
+
+def _ledger_query(db: Session, user_id: int, entry_type: str | None,
+                  category: str | None, page: int):
+    q = select(LedgerEntry).where(LedgerEntry.user_id == user_id)
+    if entry_type:
+        q = q.where(LedgerEntry.entry_type == entry_type)
+    if category:
+        q = q.where(LedgerEntry.category == category)
+    q = q.order_by(LedgerEntry.created_at.desc(), LedgerEntry.id.desc())
+    entries = db.scalars(q.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1)).all()
+    has_next = len(entries) > PAGE_SIZE
+    return entries[:PAGE_SIZE], has_next
+
+
+@router.get("/ledger", response_class=HTMLResponse)
+def ledger_page(request: Request, page: int = 1, entry_type: str = "", category: str = "",
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    page = max(page, 1)
+    entries, has_next = _ledger_query(db, user.id, entry_type or None, category or None, page)
+    ctx = dict(entries=entries, page=page, has_next=has_next,
+               entry_type=entry_type, category=category, categories=_categories(db))
+    template = "partials/ledger_table.html" if request.headers.get("hx-request") else "ledger.html"
+    return _render(request, template, user, db, **ctx)
+
+
+# ---------- reports ----------
+
+@router.get("/reports", response_class=HTMLResponse)
+def reports_page(request: Request, user: User = Depends(auth.get_current_user),
+                 db: Session = Depends(get_db)):
+    return _render(request, "reports.html", user, db)
+
+
+# ---------- admin ----------
+
+@router.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request, view_user_id: int | None = None,
+               user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    if not user.is_admin:
+        return RedirectResponse("/", status_code=303)
+    users = db.scalars(select(User).order_by(User.display_name)).all()
+    rows = [{"user": u, "balance": get_balance(db, u.id)} for u in users]
+    viewed = db.get(User, view_user_id) if view_user_id else None
+    viewed_entries = []
+    if viewed:
+        viewed_entries = db.scalars(
+            select(LedgerEntry).where(LedgerEntry.user_id == viewed.id)
+            .order_by(LedgerEntry.created_at.desc(), LedgerEntry.id.desc()).limit(100)
+        ).all()
+    return _render(request, "admin.html", user, db, rows=rows,
+                   viewed=viewed, viewed_entries=viewed_entries)
+
+
+@router.post("/admin/adjustments", response_class=HTMLResponse)
+def admin_adjustment(request: Request, user_id: int = Form(...), amount: int = Form(...),
+                     reason: str = Form(""),
+                     user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    done = False
+    try:
+        transactions.adjustment(db, user, user_id, amount, reason)
+        done = True
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    users = db.scalars(select(User).order_by(User.display_name)).all()
+    rows = [{"user": u, "balance": get_balance(db, u.id)} for u in users]
+    return _render(request, "admin.html", user, db, rows=rows, viewed=None,
+                   viewed_entries=[], error=error, done=done)

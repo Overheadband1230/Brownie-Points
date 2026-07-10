@@ -1,0 +1,64 @@
+{% from "_macros.html" import status_chip %}
+<div id="redemption-lists">
+  {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+  <div class="bg-white rounded-2xl shadow p-6 mb-6">
+    <h2 class="font-bold text-lg mb-3">⏳ Requests waiting on you</h2>
+    {% set actionable = for_me | selectattr('status', 'in', ['PENDING', 'APPROVED']) | list %}
+    {% if actionable %}
+    <ul class="space-y-3">
+      {% for r in actionable %}
+      <li class="border border-stone-200 rounded-xl p-3 text-sm">
+        <div class="flex items-center gap-2 flex-wrap">
+          {{ status_chip(r.status) }}
+          <span class="flex-1"><b>{{ r.requester.display_name }}</b> wants to spend <b>{{ r.amount }} BP</b>: “{{ r.reason }}”</span>
+        </div>
+        <div class="flex gap-2 mt-2">
+          {% if r.status == 'PENDING' %}
+          <button hx-post="/redemptions/{{ r.id }}/approve" hx-target="#redemption-lists" hx-swap="outerHTML"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Approve</button>
+          <button hx-post="/redemptions/{{ r.id }}/deny" hx-target="#redemption-lists" hx-swap="outerHTML"
+            class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Deny</button>
+          {% elif r.status == 'APPROVED' %}
+          <button hx-post="/redemptions/{{ r.id }}/fulfill" hx-target="#redemption-lists" hx-swap="outerHTML"
+            class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Mark fulfilled ✅</button>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-stone-400 text-sm">Nobody wants anything from you right now. Suspicious.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6">
+    <h2 class="font-bold text-lg mb-3">📋 My requests</h2>
+    {% if mine %}
+    <ul class="space-y-3">
+      {% for r in mine %}
+      <li class="border border-stone-200 rounded-xl p-3 text-sm">
+        <div class="flex items-center gap-2 flex-wrap">
+          {{ status_chip(r.status) }}
+          <span class="flex-1">Asking <b>{{ r.grantor.display_name }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b></span>
+          <span class="text-xs text-stone-400">{{ r.created_at.strftime('%b %d') }}</span>
+        </div>
+        <div class="flex gap-2 mt-2">
+          {% if r.status == 'PENDING' %}
+          <button hx-post="/redemptions/{{ r.id }}/cancel" hx-target="#redemption-lists" hx-swap="outerHTML"
+            hx-confirm="Cancel this request and get your points back?"
+            class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-lg">Cancel</button>
+          {% elif r.status == 'APPROVED' %}
+          <button hx-post="/redemptions/{{ r.id }}/fulfill" hx-target="#redemption-lists" hx-swap="outerHTML"
+            hx-confirm="Confirm the favor actually happened?"
+            class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Mark fulfilled ✅</button>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-stone-400 text-sm">You haven't asked for anything yet. Your points are just sitting there, gathering interest (they're not).</p>
+    {% endif %}
+  </div>
+</div>

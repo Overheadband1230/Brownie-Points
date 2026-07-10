@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Brownie Points{% endblock %} · Brownie Points 🍫</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    body { background: #fdf8f3; }
+  </style>
+</head>
+<body class="min-h-screen text-stone-800">
+  {% if user %}
+  <nav class="bg-amber-900 text-amber-50 shadow">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-1 flex-wrap">
+      <a href="/" class="font-bold text-lg mr-3 whitespace-nowrap">🍫 Brownie Points</a>
+      <div class="flex gap-1 flex-wrap text-sm">
+        <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Dashboard</a>
+        <a href="/award" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Award</a>
+        <a href="/spend" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Spend
+          {% if pending_count %}<span class="ml-1 bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full">{{ pending_count }}</span>{% endif %}
+        </a>
+        <a href="/ledger" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Ledger</a>
+        <a href="/reports" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Reports</a>
+        {% if user.is_admin %}<a href="/admin" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Admin</a>{% endif %}
+      </div>
+      <div class="ml-auto flex items-center gap-3 text-sm">
+        <span class="hidden sm:inline text-amber-200">{{ user.display_name }}</span>
+        <a href="/logout" class="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-700">Logout</a>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+  <main class="max-w-4xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="max-w-4xl mx-auto px-4 pb-8 text-center text-xs text-stone-400">
+    Brownie Points — a tiny economy of goodwill. Spend wisely. 🍫
+  </footer>
+</body>
+</html>

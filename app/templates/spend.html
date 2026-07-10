@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Spend{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-900 mb-1">💸 Spend your points</h1>
+<p class="text-stone-500 text-sm mb-5">You have <b>{{ balance.spendable }} BP</b> to spend. Ask someone for a favor.</p>
+
+{% if created %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-emerald-800">Request sent! 🤞</b>
+  <span class="text-emerald-600">Your points are on hold until they answer.</span>
+</div>
+{% endif %}
+{% if redeemed %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-emerald-800">Redeemed: “{{ redeemed }}” 🛍️</b>
+  <span class="text-emerald-600">Deal's on — mark it fulfilled once it happens.</span>
+</div>
+{% endif %}
+{% if listed %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-emerald-800">“{{ listed }}” is on the menu! 🏷️</b>
+  <span class="text-emerald-600">Let the redemptions roll in.</span>
+</div>
+{% endif %}
+{% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-lg mb-1">🛍️ The menu</h2>
+  <p class="text-xs text-stone-400 mb-4">Pre-priced favors your friends are offering. One click, no haggling — redeeming skips straight to approved.</p>
+  {% if menu_items %}
+  <ul class="grid sm:grid-cols-2 gap-3">
+    {% for item in menu_items %}
+    <li class="border border-stone-200 rounded-xl p-3 text-sm flex items-center gap-3">
+      <div class="flex-1 min-w-0">
+        <p class="font-medium truncate" title="{{ item.name }}">{{ item.name }}</p>
+        <p class="text-xs text-stone-400">by {{ item.owner.display_name }}{% if item.category %} · {{ item.category }}{% endif %}</p>
+      </div>
+      <form method="post" action="/items/{{ item.id }}/redeem">
+        <button class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-2 rounded-lg whitespace-nowrap"
+          {% if balance.spendable < item.price %}disabled title="Not enough points" style="opacity:.5"{% endif %}>
+          {{ item.price }} BP 🍫
+        </button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-stone-400 text-sm">Nobody's offering anything yet. The menu is tragically empty.</p>
+  {% endif %}
+</div>
+
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-lg mb-1">🏷️ My offerings</h2>
+  <p class="text-xs text-stone-400 mb-4">Things you'll do for points, at a price you set.</p>
+  {% if my_items %}
+  <ul class="space-y-2 mb-4">
+    {% for item in my_items %}
+    <li class="flex items-center gap-3 text-sm border border-stone-200 rounded-xl px-3 py-2">
+      <span class="flex-1 truncate">{{ item.name }}{% if item.category %} <span class="text-stone-400 text-xs">· {{ item.category }}</span>{% endif %}</span>
+      <span class="font-mono font-semibold text-amber-900 whitespace-nowrap">{{ item.price }} BP</span>
+      <form method="post" action="/items/{{ item.id }}/delist">
+        <button class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg">Delist</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post" action="/items" class="grid sm:grid-cols-4 gap-3 text-sm">
+    <input name="name" type="text" required placeholder="e.g. one home-cooked dinner"
+      class="sm:col-span-2 border border-stone-300 rounded-lg px-3 py-2">
+    <div class="flex gap-3">
+      <input name="price" type="number" min="1" step="1" required placeholder="Price"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+      <select name="category" class="border border-stone-300 rounded-lg px-2 py-2 bg-white">
+        <option value="">—</option>
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg">List it 🏷️</button>
+  </form>
+</div>
+
+{% if users %}
+<form method="post" action="/spend" class="bg-white rounded-2xl shadow p-6 space-y-4 mb-6">
+  <div class="grid sm:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">Ask whom?</label>
+      <select name="grantor_id" required class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
+        {% for u in users %}<option value="{{ u.id }}">{{ u.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Points to spend</label>
+      <input name="amount" type="number" min="1" step="1" value="1" required
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+    </div>
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1">What do you want?</label>
+    <input name="reason" type="text" required placeholder="e.g. help me move this weekend"
+      class="w-full border border-stone-300 rounded-lg px-3 py-2">
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1">Category <span class="text-stone-400">(optional)</span></label>
+    <select name="category" class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
+      <option value="">—</option>
+      {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">
+    Cash in 💸
+  </button>
+</form>
+{% endif %}
+
+{% include "partials/redemption_lists.html" %}
+
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import type_chip, amount_cell %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-900 mb-1">🛠️ Admin</h1>
+<p class="text-stone-500 text-sm mb-5">With great power comes great responsibility (and adjustments).</p>
+
+{% if done %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">Adjustment recorded in the ledger. ⚖️</p>{% endif %}
+{% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-lg mb-3">Users</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-stone-400 uppercase border-b border-stone-100">
+          <th class="py-2 pr-4">Name</th><th class="py-2 pr-4">Email</th>
+          <th class="py-2 pr-4 text-right">Spendable</th><th class="py-2 pr-4 text-right">Held</th>
+          <th class="py-2 pr-4 text-right">Lifetime</th><th class="py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        {% for row in rows %}
+        <tr>
+          <td class="py-2 pr-4 font-medium">{{ row.user.display_name }}{% if row.user.is_admin %} <span class="text-xs text-violet-600">admin</span>{% endif %}</td>
+          <td class="py-2 pr-4 text-stone-500">{{ row.user.email }}</td>
+          <td class="py-2 pr-4 text-right font-mono">{{ row.balance.spendable }}</td>
+          <td class="py-2 pr-4 text-right font-mono text-amber-700">{{ row.balance.held }}</td>
+          <td class="py-2 pr-4 text-right font-mono text-stone-500">{{ row.balance.lifetime_earned }}</td>
+          <td class="py-2 text-right"><a href="/admin?view_user_id={{ row.user.id }}" class="text-amber-800 hover:underline text-xs font-semibold">View ledger →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-lg mb-1">Create adjustment</h2>
+  <p class="text-xs text-stone-400 mb-4">A signed correction, recorded transparently. Positive credits, negative debits.</p>
+  <form method="post" action="/admin/adjustments" class="grid sm:grid-cols-4 gap-3 text-sm">
+    <select name="user_id" required class="border border-stone-300 rounded-lg px-3 py-2 bg-white">
+      {% for row in rows %}<option value="{{ row.user.id }}">{{ row.user.display_name }}</option>{% endfor %}
+    </select>
+    <input name="amount" type="number" step="1" required placeholder="±amount"
+      class="border border-stone-300 rounded-lg px-3 py-2">
+    <input name="reason" type="text" required placeholder="Why?"
+      class="border border-stone-300 rounded-lg px-3 py-2">
+    <button class="bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2 rounded-lg">Adjust ⚖️</button>
+  </form>
+</div>
+
+{% if viewed %}
+<div class="bg-white rounded-2xl shadow p-6">
+  <h2 class="font-bold text-lg mb-3">Ledger: {{ viewed.display_name }} <span class="text-xs text-stone-400 font-normal">(latest 100)</span></h2>
+  {% if viewed_entries %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <tbody class="divide-y divide-stone-100">
+        {% for e in viewed_entries %}
+        <tr>
+          <td class="py-2 pr-4 whitespace-nowrap text-stone-500">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="py-2 pr-4">{{ type_chip(e.entry_type) }}</td>
+          <td class="py-2 pr-4 text-right">{{ amount_cell(e.amount) }}</td>
+          <td class="py-2 max-w-[16rem] truncate" title="{{ e.reason }}">{{ e.reason }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-stone-400 text-sm">Empty ledger. A blank slate.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

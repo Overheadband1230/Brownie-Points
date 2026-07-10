@@ -1,0 +1,48 @@
+{% from "_macros.html" import type_chip, amount_cell %}
+<div id="ledger-table">
+  {% if entries %}
+  <div class="overflow-x-auto bg-white rounded-2xl shadow">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs text-stone-400 uppercase border-b border-stone-100">
+          <th class="px-4 py-3">Date</th>
+          <th class="px-4 py-3">Type</th>
+          <th class="px-4 py-3">Counterparty</th>
+          <th class="px-4 py-3 text-right">Amount</th>
+          <th class="px-4 py-3">Reason</th>
+          <th class="px-4 py-3">Category</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        {% for e in entries %}
+        <tr>
+          <td class="px-4 py-2.5 whitespace-nowrap text-stone-500">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="px-4 py-2.5">{{ type_chip(e.entry_type) }}</td>
+          <td class="px-4 py-2.5">{{ e.counterparty.display_name if e.counterparty else '—' }}</td>
+          <td class="px-4 py-2.5 text-right">{{ amount_cell(e.amount) }}</td>
+          <td class="px-4 py-2.5 max-w-[16rem] truncate" title="{{ e.reason }}">{{ e.reason }}</td>
+          <td class="px-4 py-2.5 text-stone-500">{{ e.category or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="flex justify-between items-center mt-4 text-sm">
+    {% if page > 1 %}
+    <button hx-get="/ledger?page={{ page - 1 }}&entry_type={{ entry_type }}&category={{ category }}"
+      hx-target="#ledger-table" hx-swap="outerHTML"
+      class="bg-white shadow px-4 py-2 rounded-lg hover:bg-stone-50">← Newer</button>
+    {% else %}<span></span>{% endif %}
+    <span class="text-stone-400">Page {{ page }}</span>
+    {% if has_next %}
+    <button hx-get="/ledger?page={{ page + 1 }}&entry_type={{ entry_type }}&category={{ category }}"
+      hx-target="#ledger-table" hx-swap="outerHTML"
+      class="bg-white shadow px-4 py-2 rounded-lg hover:bg-stone-50">Older →</button>
+    {% else %}<span></span>{% endif %}
+  </div>
+  {% else %}
+  <div class="bg-white rounded-2xl shadow p-8 text-center text-stone-400 text-sm">
+    The ledger is empty. History has yet to be written. 📜
+  </div>
+  {% endif %}
+</div>

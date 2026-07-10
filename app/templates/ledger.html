@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ledger{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-900 mb-1">📜 The Ledger</h1>
+<p class="text-stone-500 text-sm mb-5">Every point, accounted for. The ledger never forgets.</p>
+
+<form class="flex gap-3 mb-5 text-sm flex-wrap"
+      hx-get="/ledger" hx-target="#ledger-table" hx-swap="outerHTML" hx-trigger="change">
+  <select name="entry_type" class="border border-stone-300 rounded-lg px-3 py-2 bg-white">
+    <option value="">All types</option>
+    {% for t in ['AWARD', 'HOLD', 'RELEASE', 'DEBIT', 'ADJUSTMENT'] %}
+    <option value="{{ t }}" {% if entry_type == t %}selected{% endif %}>{{ t.title() }}</option>
+    {% endfor %}
+  </select>
+  <select name="category" class="border border-stone-300 rounded-lg px-3 py-2 bg-white">
+    <option value="">All categories</option>
+    {% for c in categories %}
+    <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+{% include "partials/ledger_table.html" %}
+
+{% endblock %}

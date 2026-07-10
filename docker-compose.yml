@@ -1,0 +1,14 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - brownie_data:/data          # SQLite file lives here, survives restarts
+    environment:
+      - DATABASE_URL=sqlite:////data/brownie.db
+      - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-string}   # signs session cookies
+    restart: unless-stopped
+
+volumes:
+  brownie_data:

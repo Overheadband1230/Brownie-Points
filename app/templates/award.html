@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Award{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-amber-900 mb-1">🎁 Award a Brownie Point</h1>
+  <p class="text-stone-500 text-sm mb-5">Someone did something nice? Make it official.</p>
+
+  {% if awarded %}
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5 text-center">
+    <div class="text-4xl mb-1">🍫✨</div>
+    <p class="font-bold text-emerald-800">{{ awarded.name }} has been awarded {{ awarded.amount }} Brownie Point{{ 's' if awarded.amount != 1 }}!</p>
+    <p class="text-sm text-emerald-600 mt-1">May they spend it wisely.</p>
+  </div>
+  {% endif %}
+
+  {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+  {% if users %}
+  <form method="post" action="/award" class="bg-white rounded-2xl shadow p-6 space-y-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">Who earned it?</label>
+      <select name="to_user_id" required class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
+        {% for u in users %}
+        <option value="{{ u.id }}" {% if form and form.to_user_id == u.id %}selected{% endif %}>{{ u.display_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">How many points?</label>
+      <input name="amount" type="number" min="1" step="1" required value="{{ form.amount if form else 1 }}"
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">What did they do?</label>
+      <input name="reason" type="text" required placeholder="e.g. drove me to the airport at 5am"
+        value="{{ form.reason if form else '' }}" class="w-full border border-stone-300 rounded-lg px-3 py-2">
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Category <span class="text-stone-400">(optional)</span></label>
+      <select name="category" class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
+        <option value="">—</option>
+        {% for c in categories %}
+        <option value="{{ c }}" {% if form and form.category == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">
+      Award it 🍫
+    </button>
+  </form>
+  {% else %}
+  <div class="bg-white rounded-2xl shadow p-6 text-center text-stone-500 text-sm">
+    You're the only one here. An economy of one is just… a diary. Invite a friend to sign up!
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
