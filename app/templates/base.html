@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+{% set _theme = request.cookies.get('bp_theme', 'brownie') %}
+<html lang="en" data-theme="{{ _theme if _theme in ('brownie', 'pink', 'light', 'dark', 'claude') else 'brownie' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +9,112 @@
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <style>
-    body { background: #fdf8f3; }
+    /* ---- Color themes ----------------------------------------------
+       Templates use the Brownie palette's Tailwind classes (amber/stone)
+       directly; themes recolor them here via CSS variables so every page
+       is themed from one place. The cookie bp_theme picks the theme. */
+    :root, [data-theme="brownie"] {
+      --page-bg: #fdf8f3;
+      --nav-bg: #78350f;      --nav-hover: #92400e;   --nav-muted: #fde68a;
+      --accent: #92400e;      --accent-hover: #b45309;
+      --accent-soft: #fffbeb; --soft-border: #fde68a;
+      --heading: #78350f;     --link: #92400e;
+      --chip-bg: #fef3c7;     --chip-text: #92400e;
+      --muted-accent: #b45309; --muted-accent-2: #d97706;
+    }
+    [data-theme="pink"] {
+      --page-bg: #fdf2f8;
+      --nav-bg: #831843;      --nav-hover: #9d174d;   --nav-muted: #fbcfe8;
+      --accent: #be185d;      --accent-hover: #db2777;
+      --accent-soft: #fce7f3; --soft-border: #fbcfe8;
+      --heading: #831843;     --link: #be185d;
+      --chip-bg: #fce7f3;     --chip-text: #9d174d;
+      --muted-accent: #db2777; --muted-accent-2: #ec4899;
+    }
+    [data-theme="light"] {
+      --page-bg: #f8fafc;
+      --nav-bg: #0f172a;      --nav-hover: #1e293b;   --nav-muted: #cbd5e1;
+      --accent: #334155;      --accent-hover: #475569;
+      --accent-soft: #f1f5f9; --soft-border: #e2e8f0;
+      --heading: #0f172a;     --link: #334155;
+      --chip-bg: #e2e8f0;     --chip-text: #334155;
+      --muted-accent: #64748b; --muted-accent-2: #64748b;
+    }
+    [data-theme="dark"] {
+      --page-bg: #1c1917;
+      --nav-bg: #0c0a09;      --nav-hover: #292524;   --nav-muted: #d6d3d1;
+      --accent: #b45309;      --accent-hover: #d97706;
+      --accent-soft: rgba(217, 119, 6, .14); --soft-border: rgba(217, 119, 6, .35);
+      --heading: #fcd34d;     --link: #fbbf24;
+      --chip-bg: rgba(217, 119, 6, .22);     --chip-text: #fcd34d;
+      --muted-accent: #fbbf24; --muted-accent-2: #f59e0b;
+    }
+    [data-theme="claude"] {
+      --page-bg: #faf9f5;
+      --nav-bg: #141413;      --nav-hover: #2b2a27;   --nav-muted: #e8e6dc;
+      --accent: #d97757;      --accent-hover: #bf6141;
+      --accent-soft: #f8ece5; --soft-border: #f0d9cd;
+      --heading: #141413;     --link: #c15f3c;
+      --chip-bg: #f5e5da;     --chip-text: #a8492b;
+      --muted-accent: #c15f3c; --muted-accent-2: #d97757;
+    }
+
+    body { background: var(--page-bg); }
+    .bg-amber-900 { background-color: var(--nav-bg) !important; }
+    .hover\:bg-amber-800:hover { background-color: var(--nav-hover) !important; }
+    nav .bg-amber-800 { background-color: var(--nav-hover) !important; }
+    .bg-amber-800 { background-color: var(--accent) !important; }
+    .hover\:bg-amber-700:hover { background-color: var(--accent-hover) !important; }
+    .bg-amber-50 { background-color: var(--accent-soft) !important; }
+    .hover\:bg-amber-50:hover { background-color: var(--accent-soft) !important; }
+    .bg-amber-100 { background-color: var(--chip-bg) !important; }
+    .border-amber-200 { border-color: var(--soft-border) !important; }
+    .border-amber-800 { border-color: var(--accent) !important; }
+    .text-amber-900 { color: var(--heading) !important; }
+    .text-amber-800 { color: var(--link) !important; }
+    .text-amber-700 { color: var(--muted-accent) !important; }
+    .text-amber-600 { color: var(--muted-accent-2) !important; }
+    .text-amber-200 { color: var(--nav-muted) !important; }
+    nav .text-amber-50, nav.text-amber-50 { color: #fdfcfb; }
+
+    /* ---- Dark theme: surfaces, text, borders, inputs -------------- */
+    [data-theme="dark"] body { color: #e7e5e4; }
+    [data-theme="dark"] .bg-white { background-color: #292524 !important; }
+    [data-theme="dark"] .bg-stone-100 { background-color: #1c1917 !important; }
+    [data-theme="dark"] .bg-stone-200 { background-color: #44403c !important; }
+    [data-theme="dark"] .hover\:bg-stone-50:hover { background-color: #322e2b !important; }
+    [data-theme="dark"] .hover\:bg-stone-300:hover { background-color: #57534e !important; }
+    [data-theme="dark"] .text-stone-800 { color: #e7e5e4 !important; }
+    [data-theme="dark"] .text-stone-700 { color: #d6d3d1 !important; }
+    [data-theme="dark"] .text-stone-600 { color: #a8a29e !important; }
+    [data-theme="dark"] .text-stone-500 { color: #a8a29e !important; }
+    [data-theme="dark"] .text-stone-400 { color: #78716c !important; }
+    [data-theme="dark"] .border-stone-100 { border-color: #33302d !important; }
+    [data-theme="dark"] .border-stone-200 { border-color: #44403c !important; }
+    [data-theme="dark"] .border-stone-300 { border-color: #57534e !important; }
+    [data-theme="dark"] .divide-stone-100 > :not([hidden]) ~ :not([hidden]) { border-color: #33302d !important; }
+    [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea {
+      background-color: #1c1917; color: #e7e5e4; border-color: #57534e;
+    }
+    [data-theme="dark"] input::placeholder { color: #78716c; }
+    [data-theme="dark"] .shadow { box-shadow: 0 1px 3px 0 rgba(0,0,0,.5), 0 1px 2px -1px rgba(0,0,0,.5); }
+    /* status colors on dark */
+    [data-theme="dark"] .bg-emerald-50 { background-color: rgba(16,185,129,.12) !important; }
+    [data-theme="dark"] .bg-emerald-100 { background-color: rgba(16,185,129,.22) !important; }
+    [data-theme="dark"] .text-emerald-800, [data-theme="dark"] .text-emerald-700 { color: #6ee7b7 !important; }
+    [data-theme="dark"] .text-emerald-600 { color: #34d399 !important; }
+    [data-theme="dark"] .border-emerald-200 { border-color: rgba(16,185,129,.35) !important; }
+    [data-theme="dark"] .bg-rose-50 { background-color: rgba(244,63,94,.12) !important; }
+    [data-theme="dark"] .bg-rose-100 { background-color: rgba(244,63,94,.22) !important; }
+    [data-theme="dark"] .text-rose-800, [data-theme="dark"] .text-rose-700, [data-theme="dark"] .text-rose-600 { color: #fda4af !important; }
+    [data-theme="dark"] .border-rose-200 { border-color: rgba(244,63,94,.35) !important; }
+    [data-theme="dark"] .bg-sky-50 { background-color: rgba(14,165,233,.12) !important; }
+    [data-theme="dark"] .bg-sky-100 { background-color: rgba(14,165,233,.22) !important; }
+    [data-theme="dark"] .text-sky-900, [data-theme="dark"] .text-sky-800 { color: #7dd3fc !important; }
+    [data-theme="dark"] .text-sky-600 { color: #38bdf8 !important; }
+    [data-theme="dark"] .border-sky-200 { border-color: rgba(14,165,233,.35) !important; }
+    [data-theme="dark"] .bg-violet-100 { background-color: rgba(139,92,246,.22) !important; }
+    [data-theme="dark"] .text-violet-800, [data-theme="dark"] .text-violet-600 { color: #c4b5fd !important; }
   </style>
 </head>
 <body class="min-h-screen text-stone-800">

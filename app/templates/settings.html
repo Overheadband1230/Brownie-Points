@@ -6,6 +6,53 @@
   <p class="text-stone-500 text-sm mb-5">Your account, your rules.</p>
 
   <div class="bg-white rounded-2xl shadow p-6 mb-6">
+    <h2 class="font-bold text-lg mb-1">🎨 Theme</h2>
+    <p class="text-xs text-stone-400 mb-4">Pick your flavor. Saved on this device.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm" id="theme-picker">
+      <button type="button" data-set-theme="brownie" class="theme-btn border-2 border-stone-200 rounded-xl p-2.5 flex flex-col items-center gap-1.5 hover:border-stone-400">
+        <span class="flex gap-1"><span class="w-4 h-4 rounded-full" style="background:#78350f"></span><span class="w-4 h-4 rounded-full" style="background:#fdf8f3;border:1px solid #ddd"></span></span>
+        <span class="font-medium">Brownie</span>
+      </button>
+      <button type="button" data-set-theme="pink" class="theme-btn border-2 border-stone-200 rounded-xl p-2.5 flex flex-col items-center gap-1.5 hover:border-stone-400">
+        <span class="flex gap-1"><span class="w-4 h-4 rounded-full" style="background:#be185d"></span><span class="w-4 h-4 rounded-full" style="background:#fdf2f8;border:1px solid #ddd"></span></span>
+        <span class="font-medium">Pink</span>
+      </button>
+      <button type="button" data-set-theme="light" class="theme-btn border-2 border-stone-200 rounded-xl p-2.5 flex flex-col items-center gap-1.5 hover:border-stone-400">
+        <span class="flex gap-1"><span class="w-4 h-4 rounded-full" style="background:#334155"></span><span class="w-4 h-4 rounded-full" style="background:#f8fafc;border:1px solid #ddd"></span></span>
+        <span class="font-medium">Light</span>
+      </button>
+      <button type="button" data-set-theme="dark" class="theme-btn border-2 border-stone-200 rounded-xl p-2.5 flex flex-col items-center gap-1.5 hover:border-stone-400">
+        <span class="flex gap-1"><span class="w-4 h-4 rounded-full" style="background:#d97706"></span><span class="w-4 h-4 rounded-full" style="background:#1c1917"></span></span>
+        <span class="font-medium">Dark</span>
+      </button>
+      <button type="button" data-set-theme="claude" class="theme-btn border-2 border-stone-200 rounded-xl p-2.5 flex flex-col items-center gap-1.5 hover:border-stone-400">
+        <span class="flex gap-1"><span class="w-4 h-4 rounded-full" style="background:#d97757"></span><span class="w-4 h-4 rounded-full" style="background:#faf9f5;border:1px solid #ddd"></span></span>
+        <span class="font-medium">Claude</span>
+      </button>
+    </div>
+    <script>
+      (() => {
+        const buttons = document.querySelectorAll('#theme-picker [data-set-theme]');
+        function markActive() {
+          const current = document.documentElement.getAttribute('data-theme') || 'brownie';
+          buttons.forEach(b => {
+            const active = b.dataset.setTheme === current;
+            b.style.borderColor = active ? 'var(--accent)' : '';
+            b.style.boxShadow = active ? '0 0 0 1px var(--accent)' : '';
+          });
+        }
+        buttons.forEach(b => b.addEventListener('click', () => {
+          const theme = b.dataset.setTheme;
+          document.cookie = 'bp_theme=' + theme + ';path=/;max-age=31536000;samesite=lax';
+          document.documentElement.setAttribute('data-theme', theme);
+          markActive();
+        }));
+        markActive();
+      })();
+    </script>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow p-6 mb-6">
     <h2 class="font-bold text-lg mb-1">Account info</h2>
     <p class="text-xs text-stone-400 mb-4">Your email is also your login. Confirm with your password to change either.</p>
     {% if account_saved %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">Saved! You're still you, just updated. ✅</p>{% endif %}
