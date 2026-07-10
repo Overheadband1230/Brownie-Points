@@ -8,8 +8,11 @@
 services:
   web:
     build: https://github.com/Overheadband1230/Brownie-Points.git#main
-    ports:
-      - "8000:8000"
+    # Custom: br0 (macvlan) — gets its own LAN IP via DHCP; ports: doesn't
+    # apply to macvlan, so it's omitted. Reach the app at
+    # http://<container-ip>:8000 — see README for how to find that IP.
+    networks:
+      br0:
     volumes:
       - /mnt/user/appdata/brownie-points/data:/data
     environment:
@@ -17,3 +20,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-string}
       - INVITE_CODE=${INVITE_CODE:-brownie-batch}
     restart: unless-stopped
+
+networks:
+  br0:
+    external: true

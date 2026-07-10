@@ -1,8 +1,17 @@
 services:
   web:
     build: .
-    ports:
-      - "8000:8000"
+    # Custom: br0 (macvlan) — the container gets its own IP directly on
+    # the LAN instead of sharing the host's via port-mapping. Because of
+    # that, `ports:` is meaningless here (macvlan bypasses the host's
+    # network stack) — reach the app at http://<container-ip>:8000.
+    # `br0` must already exist as a Docker network on the host: Unraid
+    # creates it automatically once any container uses "Custom: br0".
+    # No ipv4_address set below, so Docker leases a DHCP address from
+    # your router when the container starts — see README for how to
+    # find the assigned IP.
+    networks:
+      br0:
     volumes:
       # Bind mount so the SQLite file sits in a visible ./data folder
       # (on Unraid: /mnt/user/appdata/brownie-points/data) — easy to
@@ -13,3 +22,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-string}   # signs session cookies
       - INVITE_CODE=${INVITE_CODE:-brownie-batch}                # required to sign up
     restart: unless-stopped
+
+networks:
+  br0:
+    external: true

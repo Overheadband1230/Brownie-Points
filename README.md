@@ -40,6 +40,21 @@ The stack is compose-based, so the **Compose Manager** plugin is the smoothest p
 
 The database is a single SQLite file at `/mnt/user/appdata/brownie-points/data/brownie.db`. Backing up means copying that one file; appdata backup plugins catch it automatically. To migrate existing data from another machine, drop its `brownie.db` there before first start.
 
+### Networking: Custom: br0 instead of bridge
+
+Both compose files attach the container to **`br0`** (macvlan) rather than Docker's default bridge network. This gives the container its own IP directly on your LAN — useful if a reverse proxy (e.g. Nginx Proxy Manager) in a separate stack was getting 502s because it couldn't route into Docker's isolated bridge network.
+
+A few things that are specific to this mode:
+
+- **`ports:` doesn't apply.** Macvlan containers bypass the host's network stack, so there's no `8000:8000` mapping — the app is reachable directly at `http://<container-ip>:8000`.
+- **`br0` must already exist** as a Docker network on the host. Unraid creates it automatically the first time *any* container is set to use "Custom: br0" — if you've never done that before, create one throwaway container that way first (Docker tab → Add Container → Network Type: `Custom: br0`), or set it under **Settings → Docker → Docker Custom Network Type**. If the network genuinely doesn't exist yet, `docker compose up` will fail with `network br0 declared as external, but could not be found`.
+- **No static IP is set**, so the container gets a DHCP-leased address from your router. After the first `Compose Up`, find it with:
+  ```bash
+  docker inspect brownie-points-web-1 --format '{{.NetworkSettings.Networks.br0.IPAddress}}'
+  ```
+  (or check the Docker tab — the container's IP is shown under its icon). Point Nginx Proxy Manager's "Forward Hostname / IP" at that address, port `8000`. Since it's DHCP, the address *can* change if the container is recreated — if that becomes annoying, reserve the container's MAC address a fixed lease in your router, or switch to a static IP by adding `ipv4_address: 192.168.1.50` (pick an address outside your DHCP range) under `networks: br0:` in the compose file.
+- **The Unraid host itself may not be able to reach the container** by that IP — this is a known macvlan quirk (the host and a macvlan container on the same physical interface can't talk to each other by default). It doesn't affect other *containers* or devices on the LAN reaching it (including NPM, if NPM is also a container). If you need host-to-container access too (e.g. for local troubleshooting from Unraid's own terminal), enable **Settings → Docker → Host access to custom networks**.
+
 <details>
 <summary>Alternative: plain Docker tab, no plugin</summary>
 
@@ -50,7 +65,7 @@ cd /mnt/user/appdata/brownie-points
 docker build -t brownie-points .
 ```
 
-Then **Docker** tab → **Add Container**: Repository `brownie-points`, port `8000 → 8000`, path `/data` → `/mnt/user/appdata/brownie-points/data`, and env variables `DATABASE_URL=sqlite:////data/brownie.db`, `SECRET_KEY`, `INVITE_CODE`. Re-run the build command whenever you pull new code.
+Then **Docker** tab → **Add Container**: Repository `brownie-points`, Network Type `Custom: br0` (or `Bridge` with port `8000 → 8000`, if you don't need the macvlan setup described above), path `/data` → `/mnt/user/appdata/brownie-points/data`, and env variables `DATABASE_URL=sqlite:////data/brownie.db`, `SECRET_KEY`, `INVITE_CODE`. Re-run the build command whenever you pull new code.
 </details>
 
 ## Run without Docker (development)
