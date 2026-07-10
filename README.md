@@ -20,6 +20,35 @@ Signing up requires an **invite code** (default: `brownie-batch`) — share it w
 - **Reports**: balance over time, points by category, and who owes whom.
 - **Admin** can make transparent ledger adjustments to fix mistakes.
 
+## Run it on Unraid
+
+The stack is compose-based, so the **Compose Manager** plugin is the smoothest path:
+
+1. **Apps** tab → install **Compose Manager** (Community Applications).
+2. Get this repo onto the server at `/mnt/user/appdata/brownie-points` — either `git clone` over SSH, or copy the folder across an SMB share.
+3. Create `/mnt/user/appdata/brownie-points/.env`:
+   ```
+   SECRET_KEY=some-long-random-string
+   INVITE_CODE=your-invite-code
+   ```
+4. **Docker** tab → Compose section → **Add New Stack**, point it at that folder, then **Compose Up**. The first start builds the image (a minute or two).
+5. Open `http://<unraid-ip>:8000` and register — the first account becomes admin.
+
+The database is a single SQLite file at `/mnt/user/appdata/brownie-points/data/brownie.db`. Backing up means copying that one file; appdata backup plugins catch it automatically. To migrate existing data from another machine, drop its `brownie.db` there before first start.
+
+<details>
+<summary>Alternative: plain Docker tab, no plugin</summary>
+
+Unraid's built-in Docker tab can't build from a Dockerfile, so build once over SSH:
+
+```bash
+cd /mnt/user/appdata/brownie-points
+docker build -t brownie-points .
+```
+
+Then **Docker** tab → **Add Container**: Repository `brownie-points`, port `8000 → 8000`, path `/data` → `/mnt/user/appdata/brownie-points/data`, and env variables `DATABASE_URL=sqlite:////data/brownie.db`, `SECRET_KEY`, `INVITE_CODE`. Re-run the build command whenever you pull new code.
+</details>
+
 ## Run without Docker (development)
 
 ```bash

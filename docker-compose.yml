@@ -4,12 +4,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - brownie_data:/data          # SQLite file lives here, survives restarts
+      # Bind mount so the SQLite file sits in a visible ./data folder
+      # (on Unraid: /mnt/user/appdata/brownie-points/data) — easy to
+      # back up by copying one file, survives restarts and rebuilds.
+      - ./data:/data
     environment:
       - DATABASE_URL=sqlite:////data/brownie.db
       - SECRET_KEY=${SECRET_KEY:-change-me-to-a-random-string}   # signs session cookies
       - INVITE_CODE=${INVITE_CODE:-brownie-batch}                # required to sign up
     restart: unless-stopped
-
-volumes:
-  brownie_data:
