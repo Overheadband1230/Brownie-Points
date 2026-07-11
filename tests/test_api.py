@@ -336,6 +336,97 @@ def test_admin_category_management(client):
     assert client.post("/api/categories", json={"name": "sneaky"}).status_code == 403
 
 
+def test_notifications_flow(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")
+
+    login(client, "alice@example.com")
+    client.post("/api/awards", json={"to_user_id": 2, "amount": 3, "reason": "kindness"})
+
+    login(client, "bob@example.com")
+    assert client.get("/api/notifications/unread-count").json()["unread"] == 1
+    notes = client.get("/api/notifications").json()
+    assert len(notes) == 1
+    assert "awarded you +3 BP" in notes[0]["text"]
+    assert notes[0]["was_unread"] is True
+    # Viewing marked them read.
+    assert client.get("/api/notifications/unread-count").json()["unread"] == 0
+
+
+def test_nudge_flow_and_cooldown(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")
+
+    login(client, "alice@example.com")
+    client.post("/api/awards", json={"to_user_id": 2, "amount": 5, "reason": "gift"})
+
+    login(client, "bob@example.com")
+    r = client.post("/api/redemptions", json={"grantor_id": 1, "amount": 2, "reason": "dinner"}).json()
+
+    # Can't nudge while merely PENDING.
+    assert client.post(f"/api/redemptions/{r['id']}/nudge").status_code == 400
+
+    login(client, "alice@example.com")
+    client.post(f"/api/redemptions/{r['id']}/approve")
+    # Grantor can't nudge — only the requester.
+    assert client.post(f"/api/redemptions/{r['id']}/nudge").status_code == 403
+
+    login(client, "bob@example.com")
+    assert client.post(f"/api/redemptions/{r['id']}/nudge").status_code == 200
+    # Cooldown: second nudge within 24h rejected.
+    resp = client.post(f"/api/redemptions/{r['id']}/nudge")
+    assert resp.status_code == 400
+    assert "one nudge per day" in resp.json()["detail"]
+
+    login(client, "alice@example.com")
+    texts = [n["text"] for n in client.get("/api/notifications").json()]
+    assert any("gently reminds you" in t for t in texts)
+
+
+def test_bets_api_lifecycle(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")
+
+    login(client, "alice@example.com")
+    client.post("/api/awards", json={"to_user_id": 2, "amount": 10, "reason": "fund"})
+    login(client, "bob@example.com")
+    client.post("/api/awards", json={"to_user_id": 1, "amount": 10, "reason": "fund"})
+
+    # Bob challenges Alice.
+    r = client.post("/api/bets", json={"opponent_id": 1, "stake": 4, "terms": "I'll win"})
+    assert r.status_code == 201, r.text
+    bet_id = r.json()["id"]
+    assert me(client)["held"] == 4
+
+    # Alice accepts, then concedes.
+    login(client, "alice@example.com")
+    assert client.post(f"/api/bets/{bet_id}/accept").status_code == 200
+    assert me(client)["held"] == 4
+    assert client.post(f"/api/bets/{bet_id}/concede").status_code == 200
+    info = me(client)
+    assert info["spendable_balance"] == 6
+    assert info["held"] == 0
+
+    login(client, "bob@example.com")
+    info = me(client)
+    assert info["spendable_balance"] == 14
+    assert info["held"] == 0
+    bet = client.get("/api/bets").json()[0]
+    assert bet["status"] == "SETTLED"
+    assert bet["winner_id"] == 2
+
+
+def test_avatar_update(client):
+    register(client, "alice@example.com", "Alice")
+    assert me(client)["avatar"] == "🍫"
+    r = client.post("/settings/avatar", data={"avatar": "🦖"})
+    assert r.status_code == 200
+    assert me(client)["avatar"] == "🦖"
+    # Garbage rejected.
+    assert "One emoji" in client.post("/settings/avatar", data={"avatar": "not an emoji"}).text
+    assert me(client)["avatar"] == "🦖"
+
+
 def test_categories_seeded(client):
     assert set(client.get("/api/categories").json()) == {
         "favor", "chore", "apology", "gift", "bet", "other"}

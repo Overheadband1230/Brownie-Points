@@ -16,6 +16,7 @@ from app.models import (
     utcnow,
 )
 from app.services.ledger import get_balance
+from app.services.notify import notify
 
 from sqlalchemy.orm import Session
 
@@ -41,6 +42,8 @@ def award(db: Session, from_user: User, to_user_id: int, amount: int,
         created_by=from_user.id,
     )
     db.add(entry)
+    notify(db, to_user_id,
+           f"🍫 {from_user.display_name} awarded you +{amount} BP: “{entry.reason}”", "/")
     db.commit()
     return entry
 
@@ -84,6 +87,9 @@ def create_redemption(db: Session, requester: User, grantor_id: int, amount: int
         redemption_id=redemption.id,
         created_by=requester.id,
     ))
+    notify(db, grantor_id,
+           f"💸 {requester.display_name} wants to spend {amount} BP: “{redemption.reason}”",
+           "/spend")
     db.commit()
     return redemption
 
@@ -103,6 +109,9 @@ def approve_redemption(db: Session, actor: User, redemption_id: int) -> Redempti
         raise ValueError("Only pending requests can be approved.")
     redemption.status = RedemptionStatus.APPROVED
     redemption.resolved_at = utcnow()
+    notify(db, redemption.requester_id,
+           f"✅ {actor.display_name} approved “{redemption.reason}” — the favor is on!",
+           "/spend")
     db.commit()
     return redemption
 
@@ -125,6 +134,10 @@ def fulfill_redemption(db: Session, actor: User, redemption_id: int) -> Redempti
         redemption_id=redemption.id,
         created_by=actor.id,
     ))
+    other = (redemption.grantor_id if actor.id == redemption.requester_id
+             else redemption.requester_id)
+    notify(db, other, f"🎉 “{redemption.reason}” was marked fulfilled. Deal complete!",
+           "/spend")
     db.commit()
     return redemption
 
@@ -142,6 +155,12 @@ def _release(db: Session, actor: User, redemption: Redemption, new_status: str) 
         redemption_id=redemption.id,
         created_by=actor.id,
     ))
+    verb = "denied" if new_status == RedemptionStatus.DENIED else "cancelled"
+    other = (redemption.grantor_id if actor.id == redemption.requester_id
+             else redemption.requester_id)
+    notify(db, other,
+           f"↩️ {actor.display_name} {verb} “{redemption.reason}” — the points went back.",
+           "/spend")
     db.commit()
     return redemption
 
@@ -231,6 +250,49 @@ def redeem_item(db: Session, requester: User, item_id: int) -> Redemption:
         redemption_id=redemption.id,
         created_by=requester.id,
     ))
+    notify(db, item.owner_id,
+           f"🛍️ {requester.display_name} redeemed “{item.name}” for {item.price} BP. "
+           f"Time to deliver!", "/spend")
+    db.commit()
+    return redemption
+
+
+NUDGE_COOLDOWN_HOURS = 24
+
+
+def _as_naive_utc(dt):
+    """SQLite returns naive datetimes; utcnow() is aware. Normalize for math."""
+    return dt.replace(tzinfo=None) if dt is not None and dt.tzinfo else dt
+
+
+def waiting_days(redemption: Redemption) -> int:
+    """Whole days since an APPROVED redemption was approved."""
+    if redemption.resolved_at is None:
+        return 0
+    delta = _as_naive_utc(utcnow()) - _as_naive_utc(redemption.resolved_at)
+    return max(delta.days, 0)
+
+
+def nudge_redemption(db: Session, actor: User, redemption_id: int) -> Redemption:
+    from datetime import timedelta
+
+    redemption = _get_redemption(db, redemption_id)
+    if actor.id != redemption.requester_id:
+        raise PermissionError("Only the person owed the favor can nudge.")
+    if redemption.status != RedemptionStatus.APPROVED:
+        raise ValueError("You can only nudge approved favors that haven't happened yet.")
+
+    now = _as_naive_utc(utcnow())
+    last = _as_naive_utc(redemption.nudged_at)
+    if last is not None and now - last < timedelta(hours=NUDGE_COOLDOWN_HOURS):
+        raise ValueError("Easy there — one nudge per day. Patience is a virtue (worth 0 BP).")
+
+    redemption.nudged_at = now
+    days = waiting_days(redemption)
+    age = f"{days} day{'s' if days != 1 else ''}" if days else "less than a day"
+    notify(db, redemption.grantor_id,
+           f"👀 {actor.display_name} gently reminds you: “{redemption.reason}” "
+           f"({redemption.amount} BP) has been waiting {age}.", "/spend")
     db.commit()
     return redemption
 
@@ -255,5 +317,8 @@ def adjustment(db: Session, admin: User, target_user_id: int, amount: int,
         created_by=admin.id,
     )
     db.add(entry)
+    notify(db, target_user_id,
+           f"⚖️ Admin adjustment: {'+' if amount > 0 else ''}{amount} BP — “{entry.reason}”",
+           "/ledger")
     db.commit()
     return entry

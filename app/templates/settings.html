@@ -30,8 +30,18 @@
         <span class="font-medium">Claude</span>
       </button>
     </div>
+    <label class="flex items-center gap-2 text-sm mt-4 cursor-pointer">
+      <input type="checkbox" id="sound-toggle" class="accent-amber-800">
+      <span>🔊 Sound effects <span class="text-stone-400 text-xs">(little pops on awards and wins)</span></span>
+    </label>
     <script>
       (() => {
+        const toggle = document.getElementById('sound-toggle');
+        toggle.checked = !document.cookie.includes('bp_sound=off');
+        toggle.addEventListener('change', () => {
+          document.cookie = 'bp_sound=' + (toggle.checked ? 'on' : 'off') + ';path=/;max-age=31536000;samesite=lax';
+          if (toggle.checked) bpPop();
+        });
         const buttons = document.querySelectorAll('#theme-picker [data-set-theme]');
         function markActive() {
           const current = document.documentElement.getAttribute('data-theme') || 'brownie';

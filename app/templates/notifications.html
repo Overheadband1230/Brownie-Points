@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-amber-900 mb-1">🔔 Notifications</h1>
+  <p class="text-stone-500 text-sm mb-5">Everything that happened while you weren't looking.</p>
+
+  {% if notifications %}
+  <ul class="space-y-2">
+    {% for n in notifications %}
+    <li class="bg-white rounded-xl shadow-sm border {{ 'border-amber-200' if n.was_unread else 'border-stone-100' }} px-4 py-3 text-sm flex items-start gap-3">
+      <div class="flex-1">
+        {% if n.link %}<a href="{{ n.link }}" class="hover:underline">{{ n.text }}</a>
+        {% else %}{{ n.text }}{% endif %}
+      </div>
+      <span class="text-xs text-stone-400 whitespace-nowrap mt-0.5">{{ n.created_at.strftime('%b %d, %H:%M') }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="bg-white rounded-2xl shadow p-8 text-center text-stone-400 text-sm">
+    Silence. Nobody needs anything from you, and nobody's given you anything. Peaceful, or lonely — you decide. 🍃
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

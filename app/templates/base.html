@@ -130,11 +130,15 @@
         </a>
         <a href="/shop" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Shop</a>
         <a href="/offerings" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Offerings</a>
+        <a href="/bets" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Bets</a>
         <a href="/ledger" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Ledger</a>
         <a href="/reports" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Reports</a>
         {% if user.is_admin %}<a href="/admin" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Admin</a>{% endif %}
       </div>
       <div class="ml-auto flex items-center gap-3 text-sm">
+        <a href="/notifications" class="relative px-1.5 py-1 rounded-lg hover:bg-amber-800" title="Notifications">🔔
+          {% if unread_count %}<span class="absolute -top-1 -right-1.5 bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full">{{ unread_count }}</span>{% endif %}
+        </a>
         <a href="/settings" class="text-amber-200 hover:text-white" title="Settings">{{ user.avatar or '🍫' }} {{ user.display_name }} ⚙️</a>
         <a href="/logout" class="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-700">Logout</a>
       </div>
@@ -147,5 +151,39 @@
   <footer class="max-w-4xl mx-auto px-4 pb-8 text-center text-xs text-stone-400">
     Brownie Points — a tiny economy of goodwill. Spend wisely. 🍫
   </footer>
+  <script>
+    // ---- Sound & flair ------------------------------------------------
+    function bpSoundOn() { return !document.cookie.includes('bp_sound=off'); }
+    function bpPop() {
+      if (!bpSoundOn() || typeof AudioContext === 'undefined') return;
+      try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(420, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+        osc.onended = () => ctx.close();
+      } catch (e) { /* sound is a garnish, never an error */ }
+    }
+    function bpChocolateRain(big) {
+      if (typeof confetti !== 'function') return;
+      const colors = ['#78350f', '#92400e', '#b45309', '#d97706', '#fbbf24'];
+      confetti({ particleCount: big ? 140 : 90, spread: 75, origin: { y: 0.6 }, colors });
+      setTimeout(() => confetti({ particleCount: 60, spread: 110, origin: { y: 0.3 }, colors }), 350);
+    }
+    // Celebrate htmx-swapped content that carries a celebration marker.
+    document.addEventListener('htmx:afterSettle', (e) => {
+      if (e.target.querySelector && e.target.querySelector('#bp-celebrate')) {
+        bpChocolateRain(true);
+        bpPop();
+      }
+    });
+  </script>
 </body>
 </html>

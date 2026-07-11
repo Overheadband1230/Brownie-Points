@@ -17,9 +17,10 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import EntryType, LedgerEntry, Redemption, RedemptionStatus
+from app.models import Bet, BetStatus, EntryType, LedgerEntry, Redemption, RedemptionStatus
 
 ACTIVE_HOLD_STATUSES = (RedemptionStatus.PENDING, RedemptionStatus.APPROVED)
+ACTIVE_BET_STATUSES = (BetStatus.PROPOSED, BetStatus.ACTIVE)
 
 
 @dataclass
@@ -45,7 +46,8 @@ def get_balance(db: Session, user_id: int) -> Balance:
     adjustments = _sum(db, user_id, EntryType.ADJUSTMENT)
     spent = -_sum(db, user_id, EntryType.DEBIT)
 
-    held = -(
+    # Holds from redemptions in flight...
+    redemption_held = -(
         db.scalar(
             select(func.coalesce(func.sum(LedgerEntry.amount), 0))
             .join(Redemption, LedgerEntry.redemption_id == Redemption.id)
@@ -56,6 +58,19 @@ def get_balance(db: Session, user_id: int) -> Balance:
             )
         )
     )
+    # ...plus stakes locked in proposed/active bets (see services/bets.py).
+    bet_held = -(
+        db.scalar(
+            select(func.coalesce(func.sum(LedgerEntry.amount), 0))
+            .join(Bet, LedgerEntry.bet_id == Bet.id)
+            .where(
+                LedgerEntry.user_id == user_id,
+                LedgerEntry.entry_type == EntryType.HOLD,
+                Bet.status.in_(ACTIVE_BET_STATUSES),
+            )
+        )
+    )
+    held = redemption_held + bet_held
 
     spendable = awarded_in + adjustments - spent - held
     lifetime_earned = awarded_in + max(adjustments, 0)

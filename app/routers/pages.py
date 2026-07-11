@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 
 from app import auth
 from app.db import get_db
-from app.models import Category, EntryType, Item, LedgerEntry, Redemption, RedemptionStatus, User
+from app.models import (BetStatus, Category, EntryType, Item, LedgerEntry,
+                        Redemption, RedemptionStatus, User)
 from app.services import admin as admin_service
+from app.services import bets as bets_service
+from app.services import notify as notify_service
 from app.services import transactions
 from app.services.ledger import get_balance
 from app.services.settings import get_invite_code
@@ -44,6 +47,7 @@ def _render(request: Request, name: str, user: User | None, db: Session | None, 
     if user is not None and db is not None:
         base["balance"] = get_balance(db, user.id)
         base["pending_count"] = len(_pending_for_me(db, user))
+        base["unread_count"] = notify_service.unread_count(db, user.id)
     return templates.TemplateResponse(request, name, {**base, **ctx})
 
 
@@ -118,6 +122,9 @@ def dashboard(request: Request, user: User | None = Depends(auth.get_optional_us
                Redemption.status.in_([RedemptionStatus.PENDING, RedemptionStatus.APPROVED]))
         .order_by(Redemption.created_at.desc())
     ).all()
+    for r in my_open_requests:
+        if r.status == RedemptionStatus.APPROVED:
+            r.waiting_days = transactions.waiting_days(r)
 
     # Confetti when new awards arrived since this browser last looked.
     # Tracked with a plain cookie so it's zero-migration and per-device.
@@ -179,6 +186,9 @@ def _redemptions_context(db: Session, user: User) -> dict:
         select(Redemption).where(Redemption.grantor_id == user.id)
         .order_by(Redemption.created_at.desc())
     ).all()
+    for r in mine + for_me:
+        if r.status == RedemptionStatus.APPROVED:
+            r.waiting_days = transactions.waiting_days(r)
     return {"mine": mine, "for_me": for_me}
 
 
@@ -284,14 +294,16 @@ def item_delist(request: Request, item_id: int,
     return _offerings_page(request, db, user, items_error=error)
 
 
-def _redemption_action(request: Request, db: Session, user: User, action, redemption_id: int):
+def _redemption_action(request: Request, db: Session, user: User, action,
+                       redemption_id: int, **flags):
     error = None
     try:
         action(db, user, redemption_id)
     except (ValueError, PermissionError) as e:
         error = str(e)
+        flags = {}
     return _render(request, "partials/redemption_lists.html", user, db,
-                   error=error, **_redemptions_context(db, user))
+                   error=error, **flags, **_redemptions_context(db, user))
 
 
 @router.post("/redemptions/{redemption_id}/approve", response_class=HTMLResponse)
@@ -315,7 +327,104 @@ def cancel(request: Request, redemption_id: int,
 @router.post("/redemptions/{redemption_id}/fulfill", response_class=HTMLResponse)
 def fulfill(request: Request, redemption_id: int,
             user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
-    return _redemption_action(request, db, user, transactions.fulfill_redemption, redemption_id)
+    return _redemption_action(request, db, user, transactions.fulfill_redemption,
+                              redemption_id, celebrate=True)
+
+
+@router.post("/redemptions/{redemption_id}/nudge", response_class=HTMLResponse)
+def nudge(request: Request, redemption_id: int,
+          user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    nudged = False
+    try:
+        transactions.nudge_redemption(db, user, redemption_id)
+        nudged = True
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    return _render(request, "partials/redemption_lists.html", user, db,
+                   error=error, nudged=nudged, **_redemptions_context(db, user))
+
+
+# ---------- bets ----------
+
+def _bets_page(request: Request, db: Session, user: User, **extra):
+    bets = bets_service.bets_for(db, user.id)
+    return _render(request, "bets.html", user, db,
+                   users=_users_except(db, user.id),
+                   proposed_to_me=[b for b in bets if b.status == BetStatus.PROPOSED and b.opponent_id == user.id],
+                   proposed_by_me=[b for b in bets if b.status == BetStatus.PROPOSED and b.challenger_id == user.id],
+                   active=[b for b in bets if b.status == BetStatus.ACTIVE],
+                   history=[b for b in bets if b.status not in (BetStatus.PROPOSED, BetStatus.ACTIVE)][:20],
+                   **extra)
+
+
+@router.get("/bets", response_class=HTMLResponse)
+def bets_page(request: Request, user: User = Depends(auth.get_current_user),
+              db: Session = Depends(get_db)):
+    return _bets_page(request, db, user)
+
+
+@router.post("/bets", response_class=HTMLResponse)
+def bet_propose(request: Request, opponent_id: int = Form(...), stake: int = Form(...),
+                terms: str = Form(""),
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    proposed = False
+    try:
+        bets_service.propose_bet(db, user, opponent_id, stake, terms)
+        proposed = True
+    except ValueError as e:
+        error = str(e)
+    return _bets_page(request, db, user, error=error, proposed=proposed)
+
+
+def _bet_action(request: Request, db: Session, user: User, fn, bet_id: int, **flags):
+    error = None
+    try:
+        fn(db, user, bet_id)
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+        flags = {}
+    return _bets_page(request, db, user, error=error, **flags)
+
+
+@router.post("/bets/{bet_id}/accept", response_class=HTMLResponse)
+def bet_accept(request: Request, bet_id: int,
+               user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _bet_action(request, db, user, bets_service.accept_bet, bet_id, accepted=True)
+
+
+@router.post("/bets/{bet_id}/decline", response_class=HTMLResponse)
+def bet_decline(request: Request, bet_id: int,
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _bet_action(request, db, user, bets_service.decline_bet, bet_id)
+
+
+@router.post("/bets/{bet_id}/cancel", response_class=HTMLResponse)
+def bet_cancel(request: Request, bet_id: int,
+               user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _bet_action(request, db, user, bets_service.cancel_bet, bet_id)
+
+
+@router.post("/bets/{bet_id}/concede", response_class=HTMLResponse)
+def bet_concede(request: Request, bet_id: int,
+                user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _bet_action(request, db, user, bets_service.concede_bet, bet_id, conceded=True)
+
+
+@router.post("/bets/{bet_id}/void", response_class=HTMLResponse)
+def bet_void(request: Request, bet_id: int,
+             user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return _bet_action(request, db, user, bets_service.void_bet, bet_id)
+
+
+# ---------- notifications ----------
+
+@router.get("/notifications", response_class=HTMLResponse)
+def notifications_page(request: Request, user: User = Depends(auth.get_current_user),
+                       db: Session = Depends(get_db)):
+    rows = notify_service.list_and_mark_read(db, user.id)
+    return _render(request, "notifications.html", user, db, notifications=rows)
 
 
 # ---------- settings ----------

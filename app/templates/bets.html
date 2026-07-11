@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% from "_macros.html" import user_tag %}
+{% block title %}Bets{% endblock %}
+
+{% macro bet_line(b) -%}
+  <b>{{ user_tag(b.challenger) }}</b> vs <b>{{ user_tag(b.opponent) }}</b> — “{{ b.terms }}” · <b>{{ b.stake }} BP</b> each
+{%- endmacro %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-amber-900 mb-1">🎲 Bets</h1>
+<p class="text-stone-500 text-sm mb-5">Put your points where your mouth is. Winner takes the pot; loser clicks the sad button.</p>
+
+{% if proposed %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-emerald-800">Challenge sent! 🎲</b>
+  <span class="text-emerald-600">Your stake is on hold until they answer.</span>
+</div>
+{% endif %}
+{% if accepted %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-emerald-800">Bet's on! 🤝</b>
+  <span class="text-emerald-600">May the best friend win.</span>
+</div>
+{% endif %}
+{% if conceded %}
+<div class="bg-sky-50 border border-sky-200 rounded-2xl p-4 mb-5 text-center text-sm">
+  <b class="text-sky-800">Defeat admitted. 🏳️</b>
+  <span class="text-sky-600">Losing with grace is worth something. Not points, but something.</span>
+</div>
+{% endif %}
+{% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+{% if users %}
+<form method="post" action="/bets" class="bg-white rounded-2xl shadow p-6 space-y-4 mb-6">
+  <h2 class="font-bold text-lg">Throw down a challenge</h2>
+  <div class="grid sm:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">Against whom?</label>
+      <select name="opponent_id" required class="w-full border border-stone-300 rounded-lg px-3 py-2 bg-white">
+        {% for u in users %}<option value="{{ u.id }}">{{ u.avatar or '🍫' }} {{ u.display_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">Stake (each) — you have {{ balance.spendable }} BP</label>
+      <input name="stake" type="number" min="1" step="1" value="1" required
+        class="w-full border border-stone-300 rounded-lg px-3 py-2">
+    </div>
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1">The bet</label>
+    <input name="terms" type="text" required placeholder="e.g. I can eat the whole thing"
+      class="w-full border border-stone-300 rounded-lg px-3 py-2">
+  </div>
+  <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">
+    Propose bet 🎲
+  </button>
+</form>
+{% endif %}
+
+{% if proposed_to_me %}
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
+  <h2 class="font-bold text-amber-900 mb-2">⚔️ You've been challenged</h2>
+  <ul class="space-y-2">
+    {% for b in proposed_to_me %}
+    <li class="bg-white rounded-lg px-3 py-2 text-sm">
+      <div>{{ bet_line(b) }}</div>
+      <div class="flex gap-2 mt-2">
+        <form method="post" action="/bets/{{ b.id }}/accept">
+          <button class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Accept 🤝</button>
+        </form>
+        <form method="post" action="/bets/{{ b.id }}/decline">
+          <button class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-lg">Decline</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-lg mb-3">🔥 Active bets</h2>
+  {% if active %}
+  <ul class="space-y-2">
+    {% for b in active %}
+    <li class="border border-stone-200 rounded-xl px-3 py-2 text-sm">
+      <div>{{ bet_line(b) }} <span class="text-stone-400 text-xs">· pot: {{ b.stake * 2 }} BP</span></div>
+      <form method="post" action="/bets/{{ b.id }}/concede" class="mt-2"
+        onsubmit="return confirm('Concede this bet? {{ b.stake }} BP goes to the winner. This is how honor works.')">
+        <button class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-lg">I lost 🏳️</button>
+      </form>
+      {% if user.is_admin %}
+      <form method="post" action="/bets/{{ b.id }}/void" class="inline"
+        onsubmit="return confirm('Void this bet and return both stakes?')">
+        <button class="text-rose-600 hover:underline text-xs font-semibold mt-1">Void (admin)</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-stone-400 text-sm">No active bets. Everyone's being far too sensible.</p>
+  {% endif %}
+</div>
+
+{% if proposed_by_me %}
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-lg mb-3">⏳ Waiting for an answer</h2>
+  <ul class="space-y-2">
+    {% for b in proposed_by_me %}
+    <li class="border border-stone-200 rounded-xl px-3 py-2 text-sm flex items-center justify-between gap-2">
+      <span>{{ bet_line(b) }}</span>
+      <form method="post" action="/bets/{{ b.id }}/cancel">
+        <button class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap">Withdraw</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if history %}
+<div class="bg-white rounded-2xl shadow p-6">
+  <h2 class="font-bold text-lg mb-3">📜 Past bets</h2>
+  <ul class="divide-y divide-stone-100 text-sm">
+    {% for b in history %}
+    <li class="py-2.5 flex items-center gap-2 flex-wrap">
+      <span class="flex-1">{{ bet_line(b) }}</span>
+      {% if b.status == 'SETTLED' %}
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">🏆 {{ b.winner.display_name }}</span>
+      {% else %}
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-stone-200 text-stone-600">{{ b.status.title() }}</span>
+      {% endif %}
+      <span class="text-xs text-stone-400">{{ b.created_at.strftime('%b %d') }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% endblock %}

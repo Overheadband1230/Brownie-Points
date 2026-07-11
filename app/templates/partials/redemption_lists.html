@@ -1,6 +1,8 @@
 {% from "_macros.html" import status_chip, user_tag %}
 <div id="redemption-lists">
+  {% if celebrate %}<span id="bp-celebrate" class="hidden"></span>{% endif %}
   {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+  {% if nudged %}<p class="text-emerald-700 text-sm bg-emerald-50 rounded-lg p-3 mb-4">Nudge sent. 👀 They know. They definitely know now.</p>{% endif %}
 
   <div class="bg-white rounded-2xl shadow p-6 mb-6">
     <h2 class="font-bold text-lg mb-3">⏳ Requests waiting on you</h2>
@@ -40,7 +42,11 @@
       <li class="border border-stone-200 rounded-xl p-3 text-sm">
         <div class="flex items-center gap-2 flex-wrap">
           {{ status_chip(r.status) }}
-          <span class="flex-1">Asking <b>{{ user_tag(r.grantor) }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b></span>
+          <span class="flex-1">Asking <b>{{ user_tag(r.grantor) }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b>
+            {% if r.status == 'APPROVED' and r.waiting_days is defined and r.waiting_days > 0 %}
+            <span class="text-amber-700 text-xs">· waiting {{ r.waiting_days }} day{{ 's' if r.waiting_days != 1 }}</span>
+            {% endif %}
+          </span>
           <span class="text-xs text-stone-400">{{ r.created_at.strftime('%b %d') }}</span>
         </div>
         <div class="flex gap-2 mt-2">
@@ -52,6 +58,8 @@
           <button hx-post="/redemptions/{{ r.id }}/fulfill" hx-target="#redemption-lists" hx-swap="outerHTML"
             hx-confirm="Confirm the favor actually happened?"
             class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Mark fulfilled ✅</button>
+          <button hx-post="/redemptions/{{ r.id }}/nudge" hx-target="#redemption-lists" hx-swap="outerHTML"
+            class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-semibold px-3 py-1.5 rounded-lg">Nudge 👀</button>
           {% endif %}
         </div>
       </li>

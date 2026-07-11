@@ -7,6 +7,8 @@ from app import auth
 from app.db import get_db
 from app.models import Category, EntryType, Item, LedgerEntry, Redemption, User
 from app.services import admin as admin_service
+from app.services import bets as bets_service
+from app.services import notify as notify_service
 from app.services import transactions
 from app.services.ledger import get_balance
 
@@ -213,6 +215,12 @@ def api_fulfill(redemption_id: int, user: User = Depends(auth.get_current_user),
     return _redemption_json(_handle(transactions.fulfill_redemption, db, user, redemption_id))
 
 
+@router.post("/redemptions/{redemption_id}/nudge")
+def api_nudge(redemption_id: int, user: User = Depends(auth.get_current_user),
+              db: Session = Depends(get_db)):
+    return _redemption_json(_handle(transactions.nudge_redemption, db, user, redemption_id))
+
+
 # ---------- items ----------
 
 class ItemIn(BaseModel):
@@ -374,6 +382,84 @@ def api_adjustment(body: AdjustmentIn, user: User = Depends(auth.get_current_use
                    db: Session = Depends(get_db)):
     entry = _handle(transactions.adjustment, db, user, body.user_id, body.amount, body.reason)
     return _entry_json(entry)
+
+
+# ---------- bets ----------
+
+class BetIn(BaseModel):
+    opponent_id: int
+    stake: int
+    terms: str
+
+
+def _bet_json(b) -> dict:
+    return {
+        "id": b.id, "challenger_id": b.challenger_id, "opponent_id": b.opponent_id,
+        "stake": b.stake, "terms": b.terms, "status": b.status,
+        "winner_id": b.winner_id, "created_at": b.created_at.isoformat(),
+        "resolved_at": b.resolved_at.isoformat() if b.resolved_at else None,
+    }
+
+
+@router.post("/bets", status_code=201)
+def api_propose_bet(body: BetIn, user: User = Depends(auth.get_current_user),
+                    db: Session = Depends(get_db)):
+    return _bet_json(_handle(bets_service.propose_bet, db, user, body.opponent_id,
+                             body.stake, body.terms))
+
+
+@router.get("/bets")
+def api_bets(user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    return [_bet_json(b) for b in bets_service.bets_for(db, user.id)]
+
+
+@router.post("/bets/{bet_id}/accept")
+def api_accept_bet(bet_id: int, user: User = Depends(auth.get_current_user),
+                   db: Session = Depends(get_db)):
+    return _bet_json(_handle(bets_service.accept_bet, db, user, bet_id))
+
+
+@router.post("/bets/{bet_id}/decline")
+def api_decline_bet(bet_id: int, user: User = Depends(auth.get_current_user),
+                    db: Session = Depends(get_db)):
+    return _bet_json(_handle(bets_service.decline_bet, db, user, bet_id))
+
+
+@router.post("/bets/{bet_id}/cancel")
+def api_cancel_bet(bet_id: int, user: User = Depends(auth.get_current_user),
+                   db: Session = Depends(get_db)):
+    return _bet_json(_handle(bets_service.cancel_bet, db, user, bet_id))
+
+
+@router.post("/bets/{bet_id}/concede")
+def api_concede_bet(bet_id: int, user: User = Depends(auth.get_current_user),
+                    db: Session = Depends(get_db)):
+    return _bet_json(_handle(bets_service.concede_bet, db, user, bet_id))
+
+
+@router.post("/bets/{bet_id}/void")
+def api_void_bet(bet_id: int, user: User = Depends(auth.get_current_user),
+                 db: Session = Depends(get_db)):
+    return _bet_json(_handle(bets_service.void_bet, db, user, bet_id))
+
+
+# ---------- notifications ----------
+
+@router.get("/notifications")
+def api_notifications(user: User = Depends(auth.get_current_user),
+                      db: Session = Depends(get_db)):
+    rows = notify_service.list_and_mark_read(db, user.id)
+    return [
+        {"id": n.id, "text": n.text, "link": n.link,
+         "created_at": n.created_at.isoformat(), "was_unread": n.was_unread}
+        for n in rows
+    ]
+
+
+@router.get("/notifications/unread-count")
+def api_unread_count(user: User = Depends(auth.get_current_user),
+                     db: Session = Depends(get_db)):
+    return {"unread": notify_service.unread_count(db, user.id)}
 
 
 # ---------- admin: user management ----------

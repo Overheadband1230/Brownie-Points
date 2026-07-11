@@ -3,6 +3,7 @@
 import pytest
 
 from app.auth import register_user
+from app.services import bets as bets_service
 from app.services import transactions
 from app.services.ledger import get_balance
 
@@ -189,6 +190,104 @@ def test_item_validations(db, users):
     transactions.award(db, alice, bob.id, 10, "reasons", None)
     with pytest.raises(ValueError, match="no longer on the menu"):
         transactions.redeem_item(db, bob, item.id)
+
+
+def _fund(db, giver, receiver, amount):
+    transactions.award(db, giver, receiver.id, amount, "funding", None)
+
+
+def test_bet_propose_holds_stake(db, users):
+    alice, bob = users
+    _fund(db, alice, bob, 10)
+    _fund(db, bob, alice, 10)
+
+    bet = bets_service.propose_bet(db, alice, bob.id, 4, "I can whistle louder")
+    a = get_balance(db, alice.id)
+    assert a.spendable == 6
+    assert a.held == 4
+    assert get_balance(db, bob.id).spendable == 10  # not held until accepted
+
+    bets_service.accept_bet(db, bob, bet.id)
+    b = get_balance(db, bob.id)
+    assert b.spendable == 6
+    assert b.held == 4
+
+
+def test_bet_concede_pays_winner(db, users):
+    alice, bob = users
+    _fund(db, alice, bob, 10)
+    _fund(db, bob, alice, 10)
+    bet = bets_service.propose_bet(db, alice, bob.id, 4, "terms")
+    bets_service.accept_bet(db, bob, bet.id)
+
+    # Bob concedes: Alice wins the pot.
+    bets_service.concede_bet(db, bob, bet.id)
+    a = get_balance(db, alice.id)
+    b = get_balance(db, bob.id)
+    assert a.spendable == 14  # 10 + winnings, own stake back
+    assert a.held == 0
+    assert b.spendable == 6   # 10 − stake
+    assert b.held == 0
+    assert b.spent == 4
+    assert bet.status == "SETTLED"
+    assert bet.winner_id == alice.id
+
+
+def test_bet_decline_cancel_void_release_stakes(db, users):
+    alice, bob = users
+    _fund(db, alice, bob, 10)
+    _fund(db, bob, alice, 10)
+
+    b1 = bets_service.propose_bet(db, alice, bob.id, 3, "one")
+    bets_service.decline_bet(db, bob, b1.id)
+    assert get_balance(db, alice.id).spendable == 10
+
+    b2 = bets_service.propose_bet(db, alice, bob.id, 3, "two")
+    bets_service.cancel_bet(db, alice, b2.id)
+    assert get_balance(db, alice.id).spendable == 10
+
+    b3 = bets_service.propose_bet(db, alice, bob.id, 3, "three")
+    bets_service.accept_bet(db, bob, b3.id)
+    bets_service.void_bet(db, alice, b3.id)  # alice is admin
+    assert get_balance(db, alice.id).spendable == 10
+    assert get_balance(db, bob.id).spendable == 10
+
+
+def test_bet_validations_and_permissions(db, users):
+    alice, bob = users
+    _fund(db, alice, bob, 10)
+    _fund(db, bob, alice, 10)
+
+    with pytest.raises(ValueError):
+        bets_service.propose_bet(db, alice, alice.id, 1, "self-bet")
+    with pytest.raises(ValueError):
+        bets_service.propose_bet(db, alice, bob.id, 0, "zero")
+    with pytest.raises(ValueError, match="Not enough points"):
+        bets_service.propose_bet(db, alice, bob.id, 999, "whale bet")
+
+    bet = bets_service.propose_bet(db, alice, bob.id, 4, "terms")
+    with pytest.raises(PermissionError):
+        bets_service.accept_bet(db, alice, bet.id)  # challenger can't accept own bet
+    with pytest.raises(PermissionError):
+        bets_service.cancel_bet(db, bob, bet.id)  # opponent can't withdraw
+    with pytest.raises(ValueError):
+        bets_service.concede_bet(db, alice, bet.id)  # not active yet
+
+    bets_service.accept_bet(db, bob, bet.id)
+    with pytest.raises(PermissionError):
+        bets_service.void_bet(db, bob, bet.id)  # bob isn't admin
+
+
+def test_cannot_double_spend_across_bets_and_redemptions(db, users):
+    alice, bob = users
+    _fund(db, alice, bob, 5)
+
+    bets_service.propose_bet(db, bob, alice.id, 4, "big talk")
+    # Only 1 BP spendable left — both a redemption and another bet must fail.
+    with pytest.raises(ValueError, match="Not enough points"):
+        transactions.create_redemption(db, bob, alice.id, 2, "dinner", None)
+    with pytest.raises(ValueError, match="Not enough points"):
+        bets_service.propose_bet(db, bob, alice.id, 2, "double dip")
 
 
 def test_balance_always_equals_ledger_sum_convention(db, users):

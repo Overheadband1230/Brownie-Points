@@ -17,10 +17,7 @@
 </div>
 <script>
   document.cookie = "bp_seen_award={{ latest_award_id }};path=/;max-age=31536000;samesite=lax";
-  if (typeof confetti === 'function') {
-    confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } });
-    setTimeout(() => confetti({ particleCount: 60, spread: 100, origin: { y: 0.4 } }), 400);
-  }
+  window.addEventListener('load', () => { bpChocolateRain(true); bpPop(); });
 </script>
 {% endif %}
 
@@ -63,7 +60,7 @@
       <span>
         {{ status_chip(r.status) }}
         Asking <b>{{ user_tag(r.grantor) }}</b> for “{{ r.reason }}” — <b>{{ r.amount }} BP</b>
-        {% if r.status == 'APPROVED' %}<span class="text-sky-600">· approved, waiting to happen</span>{% endif %}
+        {% if r.status == 'APPROVED' %}<span class="text-sky-600">· approved{% if r.waiting_days is defined and r.waiting_days > 0 %}, waiting {{ r.waiting_days }} day{{ 's' if r.waiting_days != 1 }}{% else %}, waiting to happen{% endif %}</span>{% endif %}
       </span>
       <a href="/spend" class="text-sky-800 font-semibold whitespace-nowrap hover:underline">View →</a>
     </li>
