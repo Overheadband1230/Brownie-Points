@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import local_time %}
 {% block title %}Notifications{% endblock %}
 {% block content %}
 <div class="max-w-lg mx-auto">
@@ -13,7 +14,7 @@
         {% if n.link %}<a href="{{ n.link }}" class="hover:underline">{{ n.text }}</a>
         {% else %}{{ n.text }}{% endif %}
       </div>
-      <span class="text-xs text-stone-400 whitespace-nowrap mt-0.5">{{ n.created_at.strftime('%b %d, %H:%M') }}</span>
+      <span class="text-xs text-stone-400 whitespace-nowrap mt-0.5">{{ local_time(n.created_at, 'short') }}</span>
     </li>
     {% endfor %}
   </ul>

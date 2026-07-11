@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app import auth
 from app.db import get_db
 from app.models import (BetStatus, Category, EntryType, Item, LedgerEntry,
-                        Redemption, RedemptionStatus, User)
+                        Redemption, RedemptionStatus, User, iso_utc)
 from app.services import admin as admin_service
 from app.services import bets as bets_service
 from app.services import notify as notify_service
@@ -19,6 +19,7 @@ from app.services.settings import get_invite_code
 router = APIRouter()
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+templates.env.globals["iso_utc"] = iso_utc
 
 PAGE_SIZE = 25
 

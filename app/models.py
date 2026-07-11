@@ -10,6 +10,20 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def iso_utc(dt: datetime | None) -> str | None:
+    """ISO string explicitly marked UTC (trailing Z).
+
+    Timestamps are stored as UTC but come back from SQLite naive; a bare
+    isoformat() would be parsed as *local* time by JS Date. Works for both
+    naive (from DB) and aware (fresh utcnow()) values.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.isoformat() + "Z"
+
+
 class User(Base):
     __tablename__ = "users"
 

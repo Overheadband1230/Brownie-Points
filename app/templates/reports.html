@@ -63,7 +63,7 @@ fetch('/api/reports/summary').then(r => r.json()).then(data => {
     new Chart(document.getElementById('chart-balance'), {
       type: 'line',
       data: {
-        labels: data.points_over_time.map(p => p.at.slice(0, 10)),
+        labels: data.points_over_time.map(p => new Date(p.at).toLocaleDateString()),
         datasets: [{
           label: 'Spendable balance',
           data: data.points_over_time.map(p => p.balance),

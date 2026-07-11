@@ -1,4 +1,4 @@
-{% from "_macros.html" import status_chip, user_tag %}
+{% from "_macros.html" import status_chip, user_tag, local_time %}
 <div id="redemption-lists">
   {% if celebrate %}<span id="bp-celebrate" class="hidden"></span>{% endif %}
   {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
@@ -47,7 +47,7 @@
             <span class="text-amber-700 text-xs">· waiting {{ r.waiting_days }} day{{ 's' if r.waiting_days != 1 }}</span>
             {% endif %}
           </span>
-          <span class="text-xs text-stone-400">{{ r.created_at.strftime('%b %d') }}</span>
+          <span class="text-xs text-stone-400">{{ local_time(r.created_at) }}</span>
         </div>
         <div class="flex gap-2 mt-2">
           {% if r.status == 'PENDING' %}

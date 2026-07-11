@@ -1,3 +1,12 @@
+{% macro local_time(dt, style='date') -%}
+{#- UTC fallback text is replaced with browser-local time by bpLocalizeTimes() in base.html -#}
+<time datetime="{{ iso_utc(dt) }}" data-style="{{ style }}">
+  {%- if style == 'datetime' %}{{ dt.strftime('%Y-%m-%d %H:%M') }}
+  {%- elif style == 'short' %}{{ dt.strftime('%b %d, %H:%M') }}
+  {%- else %}{{ dt.strftime('%b %d') }}{% endif -%}
+</time>
+{%- endmacro %}
+
 {% macro user_tag(u) -%}
 <span class="whitespace-nowrap">{{ u.avatar or '🍫' }} {{ u.display_name }}</span>
 {%- endmacro %}

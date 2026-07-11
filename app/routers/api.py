@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import auth
 from app.db import get_db
-from app.models import Category, EntryType, Item, LedgerEntry, Redemption, User
+from app.models import Category, EntryType, Item, LedgerEntry, Redemption, User, iso_utc
 from app.services import admin as admin_service
 from app.services import bets as bets_service
 from app.services import notify as notify_service
@@ -165,8 +165,8 @@ def _redemption_json(r: Redemption) -> dict:
         "reason": r.reason,
         "category": r.category,
         "status": r.status,
-        "created_at": r.created_at.isoformat(),
-        "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+        "created_at": iso_utc(r.created_at),
+        "resolved_at": iso_utc(r.resolved_at),
     }
 
 
@@ -282,7 +282,7 @@ def _entry_json(e: LedgerEntry) -> dict:
         "category": e.category,
         "redemption_id": e.redemption_id,
         "created_by": e.created_by,
-        "created_at": e.created_at.isoformat(),
+        "created_at": iso_utc(e.created_at),
     }
 
 
@@ -326,7 +326,7 @@ def api_reports_summary(user: User = Depends(auth.get_current_user),
         if e.entry_type == EntryType.DEBIT:
             continue
         running += e.amount
-        points_over_time.append({"at": e.created_at.isoformat(), "balance": running})
+        points_over_time.append({"at": iso_utc(e.created_at), "balance": running})
 
     # Points by category (awards received).
     by_category: dict[str, int] = {}
@@ -396,8 +396,8 @@ def _bet_json(b) -> dict:
     return {
         "id": b.id, "challenger_id": b.challenger_id, "opponent_id": b.opponent_id,
         "stake": b.stake, "terms": b.terms, "status": b.status,
-        "winner_id": b.winner_id, "created_at": b.created_at.isoformat(),
-        "resolved_at": b.resolved_at.isoformat() if b.resolved_at else None,
+        "winner_id": b.winner_id, "created_at": iso_utc(b.created_at),
+        "resolved_at": iso_utc(b.resolved_at),
     }
 
 
@@ -451,7 +451,7 @@ def api_notifications(user: User = Depends(auth.get_current_user),
     rows = notify_service.list_and_mark_read(db, user.id)
     return [
         {"id": n.id, "text": n.text, "link": n.link,
-         "created_at": n.created_at.isoformat(), "was_unread": n.was_unread}
+         "created_at": iso_utc(n.created_at), "was_unread": n.was_unread}
         for n in rows
     ]
 

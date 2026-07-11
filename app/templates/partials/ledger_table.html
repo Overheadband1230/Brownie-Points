@@ -1,4 +1,4 @@
-{% from "_macros.html" import type_chip, amount_cell %}
+{% from "_macros.html" import type_chip, amount_cell, local_time %}
 <div id="ledger-table">
   {% if entries %}
   <div class="overflow-x-auto bg-white rounded-2xl shadow">
@@ -16,7 +16,7 @@
       <tbody class="divide-y divide-stone-100">
         {% for e in entries %}
         <tr>
-          <td class="px-4 py-2.5 whitespace-nowrap text-stone-500">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="px-4 py-2.5 whitespace-nowrap text-stone-500">{{ local_time(e.created_at, 'datetime') }}</td>
           <td class="px-4 py-2.5">{{ type_chip(e.entry_type) }}</td>
           <td class="px-4 py-2.5">{{ e.counterparty.display_name if e.counterparty else '—' }}</td>
           <td class="px-4 py-2.5 text-right">{{ amount_cell(e.amount) }}</td>

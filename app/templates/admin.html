@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import type_chip, amount_cell %}
+{% from "_macros.html" import type_chip, amount_cell, local_time %}
 {% block title %}Admin{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold text-amber-900 mb-1">🛠️ Admin</h1>
@@ -134,7 +134,7 @@
       <tbody class="divide-y divide-stone-100">
         {% for e in viewed_entries %}
         <tr>
-          <td class="py-2 pr-4 whitespace-nowrap text-stone-500">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="py-2 pr-4 whitespace-nowrap text-stone-500">{{ local_time(e.created_at, 'datetime') }}</td>
           <td class="py-2 pr-4">{{ type_chip(e.entry_type) }}</td>
           <td class="py-2 pr-4 text-right">{{ amount_cell(e.amount) }}</td>
           <td class="py-2 max-w-[16rem] truncate" title="{{ e.reason }}">{{ e.reason }}</td>

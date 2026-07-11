@@ -183,7 +183,30 @@
         bpChocolateRain(true);
         bpPop();
       }
+      bpLocalizeTimes(e.target);
     });
+
+    // ---- Local time ---------------------------------------------------
+    // Timestamps are rendered server-side in UTC; rewrite them to the
+    // viewer's timezone. datetime attrs carry an explicit trailing Z.
+    function bpLocalizeTimes(root) {
+      const scope = root && root.querySelectorAll ? root : document;
+      for (const el of scope.querySelectorAll('time[datetime]')) {
+        const d = new Date(el.getAttribute('datetime'));
+        if (isNaN(d)) continue;
+        const style = el.dataset.style || 'date';
+        if (style === 'datetime') {
+          el.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' })
+            + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        } else if (style === 'short') {
+          el.textContent = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            + ', ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        } else {
+          el.textContent = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+      }
+    }
+    document.addEventListener('DOMContentLoaded', () => bpLocalizeTimes(document));
   </script>
 </body>
 </html>

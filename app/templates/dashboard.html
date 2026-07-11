@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import type_chip, amount_cell, status_chip, user_tag %}
+{% from "_macros.html" import type_chip, amount_cell, status_chip, user_tag, local_time %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
@@ -84,7 +84,7 @@
         {% endif %}
       </span>
       {% if e.user_id == user.id %}{{ amount_cell(e.amount) }}{% endif %}
-      <span class="text-xs text-stone-400 whitespace-nowrap">{{ e.created_at.strftime('%b %d') }}</span>
+      <span class="text-xs text-stone-400 whitespace-nowrap">{{ local_time(e.created_at) }}</span>
     </li>
     {% endfor %}
   </ul>

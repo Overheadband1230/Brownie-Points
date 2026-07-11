@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import user_tag %}
+{% from "_macros.html" import user_tag, local_time %}
 {% block title %}Bets{% endblock %}
 
 {% macro bet_line(b) -%}
@@ -131,7 +131,7 @@
       {% else %}
       <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-stone-200 text-stone-600">{{ b.status.title() }}</span>
       {% endif %}
-      <span class="text-xs text-stone-400">{{ b.created_at.strftime('%b %d') }}</span>
+      <span class="text-xs text-stone-400">{{ local_time(b.created_at) }}</span>
     </li>
     {% endfor %}
   </ul>
