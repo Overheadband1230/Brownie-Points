@@ -1,16 +1,20 @@
-# Unraid stack that builds straight from GitHub — no clone needed on the
-# server. Paste this into a Compose Manager stack (or copy just this file
-# plus a .env to /mnt/user/appdata/brownie-points).
+# Unraid stack that pulls the prebuilt image from GitHub Container
+# Registry — GitHub Actions builds it on every push to main, the server
+# never builds or holds source code. Paste this into a Compose Manager
+# stack along with a .env for SECRET_KEY / INVITE_CODE.
 #
-# NOTE: building from a URL like this requires the repo to be PUBLIC.
-# For a private repo, clone it instead (see README) or embed a personal
-# access token in the URL — not recommended, it sits here in plain text.
+# Updating after new code lands: Compose Down → Compose Up with
+# "pull images" (or `docker compose pull && docker compose up -d`).
+# For fully automatic updates, run a Watchtower container.
+#
+# NOTE: the ghcr.io package must be set to PUBLIC once (GitHub → your
+# profile → Packages → brownie-points → Package settings → Change
+# visibility), otherwise the pull needs a `docker login ghcr.io`.
 services:
   web:
-    build: https://github.com/Overheadband1230/Brownie-Points.git#main
+    image: ghcr.io/overheadband1230/brownie-points:latest
     # Custom: br0 (macvlan) — gets its own LAN IP via DHCP; ports: doesn't
-    # apply to macvlan, so it's omitted. Reach the app at
-    # http://<container-ip>:8000 — see README for how to find that IP.
+    # apply to macvlan. Reach the app at http://<container-ip>:8000.
     networks:
       br0:
     volumes:

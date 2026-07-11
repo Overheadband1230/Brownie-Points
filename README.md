@@ -24,7 +24,7 @@ Signing up requires an **invite code** (default: `brownie-batch`) — share it w
 
 The stack is compose-based, so the **Compose Manager** plugin is the smoothest path.
 
-**No-clone option (public repo):** Docker can build straight from the GitHub URL, so the server never needs the source. Install Compose Manager, add a new stack, and paste in the contents of [`docker-compose.unraid.yml`](docker-compose.unraid.yml) — its `build:` points at `https://github.com/Overheadband1230/Brownie-Points.git#main`. Set `SECRET_KEY`/`INVITE_CODE` in the stack's `.env`, Compose Up, done. To update after pushing new code, just **Compose Down → Compose Up (with build)** — it re-fetches `main`. This requires the repo to be public; for a private repo use the clone route below.
+**Recommended: prebuilt image from GitHub (no building on the server).** Every push to `main` runs the tests and publishes `ghcr.io/overheadband1230/brownie-points:latest` via GitHub Actions ([deploy.yml](.github/workflows/deploy.yml)). Install Compose Manager, add a new stack, paste in [`docker-compose.unraid.yml`](docker-compose.unraid.yml) (which pulls that image), set `SECRET_KEY`/`INVITE_CODE` in the stack's `.env`, Compose Up. **Updating** after new code lands is Compose Down → Compose Up with image pull (or `docker compose pull && docker compose up -d`) — or run [Watchtower](https://containrrr.dev/watchtower/) on the server for fully automatic updates whenever a new image is published. One-time setup: after the first Actions run, set the GHCR package to **public** (GitHub → profile → Packages → brownie-points → Package settings → Change visibility) so the server can pull without credentials.
 
 **Clone route (works for private repos):**
 

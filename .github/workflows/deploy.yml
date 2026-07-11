@@ -1,14 +1,27 @@
-
 name: Build and publish Docker image
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
   build:
     runs-on: ubuntu-latest
+    needs: test
+    # Publish only on pushes to main; PRs just prove the image builds.
     permissions:
       contents: read
       packages: write
@@ -18,6 +31,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -28,8 +42,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           # ghcr image names must be lowercase
-          tags: ghcr.io/overheadband1230/resume-website:latest
+          tags: ghcr.io/overheadband1230/brownie-points:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
