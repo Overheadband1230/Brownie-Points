@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -149,6 +149,51 @@ class Category(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True)
+
+
+class DailyAnswer(Base):
+    __tablename__ = "daily_answers"
+    __table_args__ = (UniqueConstraint("user_id", "day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    day: Mapped[str] = mapped_column(String, index=True)  # "YYYY-MM-DD"
+    answer: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
+class SealedGift(Base):
+    """An award wrapped up with a note; points exist only once opened."""
+
+    __tablename__ = "sealed_gifts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    amount: Mapped[int] = mapped_column(Integer)
+    note: Mapped[str] = mapped_column(Text)
+    unlock_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    sender: Mapped[User] = relationship(foreign_keys=[sender_id])
+    recipient: Mapped[User] = relationship(foreign_keys=[recipient_id])
+
+
+class MemoryNote(Base):
+    __tablename__ = "memory_notes"
+    __table_args__ = (UniqueConstraint("kind", "ref_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String)  # 'redemption' | 'bet' | 'gift'
+    ref_id: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    note: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
 
 
 class AppSetting(Base):

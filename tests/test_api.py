@@ -427,6 +427,117 @@ def test_avatar_update(client):
     assert me(client)["avatar"] == "🦖"
 
 
+def test_daily_question_flow(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")  # logged in as Bob
+
+    # Before answering: question visible, answers hidden.
+    daily = client.get("/api/daily").json()
+    assert daily["question"]
+    assert daily["my_answer"] is None
+    assert daily["answers"] == []
+
+    # Answer earns +1 BP.
+    assert client.post("/api/daily", json={"answer": "waffles, obviously"}).status_code == 201
+    assert me(client)["spendable_balance"] == 1
+
+    # No double answering.
+    r = client.post("/api/daily", json={"answer": "changed my mind"})
+    assert r.status_code == 400
+    assert "already answered" in r.json()["detail"]
+
+    # Alice got a "your turn" notification and can't see Bob's answer yet.
+    login(client, "alice@example.com")
+    texts = [n["text"] for n in client.get("/api/notifications").json()]
+    assert any("your turn" in t for t in texts)
+    assert client.get("/api/daily").json()["answers"] == []
+
+    # Once Alice answers, both answers are visible to her.
+    client.post("/api/daily", json={"answer": "pancakes forever"})
+    answers = client.get("/api/daily").json()["answers"]
+    assert len(answers) == 2
+
+
+def test_sealed_gift_flow(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")
+
+    # Alice sends Bob an immediately-openable gift and a locked one.
+    login(client, "alice@example.com")
+    g1 = client.post("/api/gifts", json={
+        "recipient_id": 2, "amount": 3, "note": "open when you're stressed"})
+    assert g1.status_code == 201, g1.text
+    g2 = client.post("/api/gifts", json={
+        "recipient_id": 2, "amount": 2, "note": "future you says hi",
+        "unlock_at": "2099-01-01T00:00:00Z"})
+    assert g2.status_code == 201
+
+    # Validations: self-gift and empty note rejected.
+    assert client.post("/api/gifts", json={
+        "recipient_id": 1, "amount": 1, "note": "me"}).status_code == 400
+    assert client.post("/api/gifts", json={
+        "recipient_id": 2, "amount": 1, "note": "  "}).status_code == 400
+
+    login(client, "bob@example.com")
+    # Sealed: no points yet, contents hidden from recipient.
+    assert me(client)["spendable_balance"] == 0
+    gifts = client.get("/api/gifts").json()
+    assert all("amount" not in g and "note" not in g for g in gifts)
+
+    # Locked gift can't be opened yet; sender can't open at all.
+    assert client.post(f"/api/gifts/{g2.json()['id']}/open").status_code == 400
+    login(client, "alice@example.com")
+    assert client.post(f"/api/gifts/{g1.json()['id']}/open").status_code == 403
+
+    # Open the openable one: points land exactly once, ledger entry appears.
+    login(client, "bob@example.com")
+    opened = client.post(f"/api/gifts/{g1.json()['id']}/open")
+    assert opened.status_code == 200
+    assert opened.json()["amount"] == 3
+    assert me(client)["spendable_balance"] == 3
+    assert client.post(f"/api/gifts/{g1.json()['id']}/open").status_code == 400  # no re-open
+    entries = client.get("/api/ledger").json()["entries"]
+    assert entries[0]["entry_type"] == "AWARD"
+    assert entries[0]["reason"] == "open when you're stressed"
+
+
+def test_memory_wall(client):
+    register(client, "alice@example.com", "Alice")
+    register(client, "bob@example.com", "Bob")
+
+    # Create one memory of each kind.
+    login(client, "alice@example.com")
+    client.post("/api/awards", json={"to_user_id": 2, "amount": 5, "reason": "fund"})
+    client.post("/api/daily", json={"answer": "aisle"})
+    login(client, "bob@example.com")
+    client.post("/api/daily", json={"answer": "window"})
+    r = client.post("/api/redemptions", json={"grantor_id": 1, "amount": 1, "reason": "high five"}).json()
+    b = client.post("/api/bets", json={"opponent_id": 1, "stake": 1, "terms": "I blink first"}).json()
+    login(client, "alice@example.com")
+    client.post(f"/api/redemptions/{r['id']}/approve")
+    client.post(f"/api/redemptions/{r['id']}/fulfill")
+    client.post(f"/api/bets/{b['id']}/accept")
+    client.post(f"/api/bets/{b['id']}/concede")
+    g = client.post("/api/gifts", json={"recipient_id": 2, "amount": 1, "note": "surprise"}).json()
+    login(client, "bob@example.com")
+    client.post(f"/api/gifts/{g['id']}/open")
+
+    page = client.get("/memories").text
+    assert "high five" in page          # fulfilled redemption
+    assert "I blink first" in page      # settled bet
+    assert "surprise" in page           # opened gift
+    assert "aisle" in page and "window" in page  # both daily answers
+
+    # Add a note to the redemption; it renders.
+    resp = client.post("/memories/note", data={
+        "kind": "redemption", "ref_id": r["id"], "note": "best high five of my life"})
+    assert "best high five of my life" in resp.text
+
+    # Bad kind rejected.
+    assert "annotate" in client.post("/memories/note", data={
+        "kind": "nonsense", "ref_id": 1, "note": "x"}).text
+
+
 def test_categories_seeded(client):
     assert set(client.get("/api/categories").json()) == {
         "favor", "chore", "apology", "gift", "bet", "other"}

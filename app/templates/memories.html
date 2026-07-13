@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import user_tag, local_time %}
+{% block title %}Memories{% endblock %}
+
+{% macro note_block(item) %}
+  {% for n in item.notes %}
+  <p class="text-xs text-stone-500 mt-1.5 pl-3 border-l-2 border-stone-200">
+    {{ user_tag(n.user) }}: {{ n.note }}
+  </p>
+  {% endfor %}
+  <form method="post" action="/memories/note" class="flex gap-2 mt-2">
+    <input type="hidden" name="kind" value="{{ item.kind }}">
+    <input type="hidden" name="ref_id" value="{{ item.ref_id }}">
+    <input name="note" type="text" placeholder="add a memory…" required
+      class="flex-1 text-xs border border-stone-200 rounded-lg px-2 py-1.5">
+    <button class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-600 font-semibold px-2.5 py-1.5 rounded-lg">📝</button>
+  </form>
+{% endmacro %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-amber-900 mb-1">📖 Memories</h1>
+  <p class="text-stone-500 text-sm mb-5">Everything that actually happened, newest first. Accidentally a scrapbook.</p>
+
+  {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
+
+  {% if items %}
+  <div class="space-y-3">
+    {% for item in items %}
+    <div class="bg-white rounded-2xl shadow p-4 text-sm">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">
+          {%- if item.kind == 'redemption' %}🤝{% elif item.kind == 'bet' %}🎲{% elif item.kind == 'gift' %}🎁{% else %}💌{% endif -%}
+        </span>
+        <div class="flex-1 min-w-0">
+          {% if item.kind == 'redemption' %}
+            <p>“{{ item.obj.reason }}” — {{ user_tag(item.obj.grantor) }} did this for {{ user_tag(item.obj.requester) }} · <b>{{ item.obj.amount }} BP</b></p>
+          {% elif item.kind == 'bet' %}
+            <p>“{{ item.obj.terms }}” — {{ user_tag(item.obj.winner) }} won <b>{{ item.obj.stake }} BP</b> off {{ user_tag(item.obj.challenger if item.obj.winner_id == item.obj.opponent_id else item.obj.opponent) }}</p>
+          {% elif item.kind == 'gift' %}
+            <p>“{{ item.obj.note }}” — a sealed gift from {{ user_tag(item.obj.sender) }} to {{ user_tag(item.obj.recipient) }} · <b>{{ item.obj.amount }} BP</b></p>
+          {% else %}
+            <p class="font-medium mb-1">{{ item.question }}</p>
+            {% for a in item.obj %}
+            <p class="text-stone-600">{{ user_tag(a.user) }}: “{{ a.answer }}”</p>
+            {% endfor %}
+          {% endif %}
+          {% if item.ref_id is not none %}{{ note_block(item) }}{% endif %}
+        </div>
+        <span class="text-xs text-stone-400 whitespace-nowrap">{{ local_time(item.at) }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="bg-white rounded-2xl shadow p-8 text-center text-stone-400 text-sm">
+    No memories yet. Go fulfill a favor, settle a bet, or answer the daily question — history doesn't write itself. 📖
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

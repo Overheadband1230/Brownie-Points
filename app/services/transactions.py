@@ -12,6 +12,7 @@ from app.models import (
     LedgerEntry,
     Redemption,
     RedemptionStatus,
+    SealedGift,
     User,
     utcnow,
 )
@@ -255,6 +256,58 @@ def redeem_item(db: Session, requester: User, item_id: int) -> Redemption:
            f"Time to deliver!", "/spend")
     db.commit()
     return redemption
+
+
+def send_sealed_gift(db: Session, sender: User, recipient_id: int, amount: int,
+                     note: str, unlock_at=None) -> SealedGift:
+    """A wrapped award: no ledger entry (and no points) until it's opened."""
+    if amount <= 0:
+        raise ValueError("Amount must be a positive number of Brownie Points.")
+    if recipient_id == sender.id:
+        raise ValueError("Sending yourself a sealed gift ruins the surprise.")
+    if db.get(User, recipient_id) is None:
+        raise ValueError("That user doesn't exist.")
+    if not note.strip():
+        raise ValueError("The note is the whole point of a sealed gift. Write one.")
+
+    gift = SealedGift(sender_id=sender.id, recipient_id=recipient_id,
+                      amount=amount, note=note.strip(), unlock_at=unlock_at)
+    db.add(gift)
+    notify(db, recipient_id,
+           f"🎁 {sender.display_name} sent you a sealed gift… no peeking until it opens.",
+           "/")
+    db.commit()
+    return gift
+
+
+def open_gift(db: Session, actor: User, gift_id: int) -> SealedGift:
+    gift = db.get(SealedGift, gift_id)
+    if gift is None:
+        raise ValueError("That gift doesn't exist.")
+    if actor.id != gift.recipient_id:
+        raise PermissionError("This gift isn't addressed to you. Hands off.")
+    if gift.opened_at is not None:
+        raise ValueError("Already opened — you can't re-wrap a surprise.")
+    now = _as_naive_utc(utcnow())
+    unlock = _as_naive_utc(gift.unlock_at)
+    if unlock is not None and now < unlock:
+        raise ValueError("Not yet! Patience. It opens when it opens.")
+
+    gift.opened_at = now
+    db.add(LedgerEntry(
+        user_id=gift.recipient_id,
+        counterparty_id=gift.sender_id,
+        entry_type=EntryType.AWARD,
+        amount=gift.amount,
+        reason=gift.note,
+        category="gift",
+        created_by=gift.sender_id,
+    ))
+    notify(db, gift.sender_id,
+           f"🎁 {actor.display_name} opened your sealed gift! (+{gift.amount} BP delivered)",
+           "/")
+    db.commit()
+    return gift
 
 
 NUDGE_COOLDOWN_HOURS = 24

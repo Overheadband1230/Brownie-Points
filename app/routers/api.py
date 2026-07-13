@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 
 from app import auth
 from app.db import get_db
-from app.models import Category, EntryType, Item, LedgerEntry, Redemption, User, iso_utc
+from app.models import (Category, EntryType, Item, LedgerEntry, Redemption,
+                        SealedGift, User, iso_utc)
 from app.services import admin as admin_service
 from app.services import bets as bets_service
+from app.services import daily as daily_service
 from app.services import notify as notify_service
 from app.services import transactions
 from app.services.ledger import get_balance
@@ -382,6 +384,94 @@ def api_adjustment(body: AdjustmentIn, user: User = Depends(auth.get_current_use
                    db: Session = Depends(get_db)):
     entry = _handle(transactions.adjustment, db, user, body.user_id, body.amount, body.reason)
     return _entry_json(entry)
+
+
+# ---------- daily question ----------
+
+class DailyAnswerIn(BaseModel):
+    answer: str
+
+
+@router.get("/daily")
+def api_daily(user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    day = daily_service.today_key()
+    answers = daily_service.answers_for(db, day)
+    mine = next((a for a in answers if a.user_id == user.id), None)
+    return {
+        "day": day,
+        "question": daily_service.todays_question(day),
+        "my_answer": mine.answer if mine else None,
+        # No peeking until you've answered.
+        "answers": (
+            [{"user_id": a.user_id, "answer": a.answer} for a in answers]
+            if mine else []
+        ),
+    }
+
+
+@router.post("/daily", status_code=201)
+def api_daily_answer(body: DailyAnswerIn, user: User = Depends(auth.get_current_user),
+                     db: Session = Depends(get_db)):
+    row = _handle(daily_service.answer_today, db, user, body.answer)
+    return {"day": row.day, "answer": row.answer}
+
+
+# ---------- sealed gifts ----------
+
+class GiftIn(BaseModel):
+    recipient_id: int
+    amount: int
+    note: str
+    unlock_at: str | None = None  # ISO datetime, optional
+
+
+def _gift_json(g, include_secret: bool) -> dict:
+    data = {
+        "id": g.id, "sender_id": g.sender_id, "recipient_id": g.recipient_id,
+        "created_at": iso_utc(g.created_at),
+        "unlock_at": iso_utc(g.unlock_at),
+        "opened_at": iso_utc(g.opened_at),
+    }
+    if include_secret:
+        data["amount"] = g.amount
+        data["note"] = g.note
+    return data
+
+
+@router.post("/gifts", status_code=201)
+def api_send_gift(body: GiftIn, user: User = Depends(auth.get_current_user),
+                  db: Session = Depends(get_db)):
+    unlock_at = None
+    if body.unlock_at:
+        from datetime import datetime
+        try:
+            unlock_at = datetime.fromisoformat(body.unlock_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="unlock_at must be ISO datetime")
+    g = _handle(transactions.send_sealed_gift, db, user, body.recipient_id,
+                body.amount, body.note, unlock_at)
+    return _gift_json(g, include_secret=True)
+
+
+@router.get("/gifts")
+def api_gifts(user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    gifts = db.scalars(
+        select(SealedGift).where(
+            or_(SealedGift.sender_id == user.id, SealedGift.recipient_id == user.id)
+        ).order_by(SealedGift.created_at.desc())
+    ).all()
+    # Contents stay secret from the recipient until opened.
+    return [
+        _gift_json(g, include_secret=(g.sender_id == user.id or g.opened_at is not None))
+        for g in gifts
+    ]
+
+
+@router.post("/gifts/{gift_id}/open")
+def api_open_gift(gift_id: int, user: User = Depends(auth.get_current_user),
+                  db: Session = Depends(get_db)):
+    g = _handle(transactions.open_gift, db, user, gift_id)
+    return _gift_json(g, include_secret=True)
 
 
 # ---------- bets ----------

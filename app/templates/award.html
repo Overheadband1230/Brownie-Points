@@ -16,6 +16,17 @@
   </script>
   {% endif %}
 
+  {% if sealed %}
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5 text-center">
+    <div class="text-4xl mb-1">🎁🤫</div>
+    <p class="font-bold text-emerald-800">Sealed and sent to {{ sealed.name }}!</p>
+    <p class="text-sm text-emerald-600 mt-1">
+      {% if sealed.unlock_date %}It opens on {{ sealed.unlock_date }}. Until then, it's a mystery.
+      {% else %}They can open it whenever. The suspense is their problem now.{% endif %}
+    </p>
+  </div>
+  {% endif %}
+
   {% if error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ error }}</p>{% endif %}
 
   {% if users %}
@@ -46,6 +57,18 @@
         <option value="{{ c }}" {% if form and form.category == c %}selected{% endif %}>{{ c }}</option>
         {% endfor %}
       </select>
+    </div>
+    <div class="border-t border-stone-100 pt-4">
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" name="seal" value="1" id="seal-toggle" class="accent-amber-800"
+          onchange="document.getElementById('seal-options').classList.toggle('hidden', !this.checked)">
+        <span>🎁 Seal it — hide the points and note until they open it</span>
+      </label>
+      <div id="seal-options" class="hidden mt-3">
+        <label class="block text-sm font-medium mb-1">Opens on <span class="text-stone-400">(optional — blank = openable right away)</span></label>
+        <input name="unlock_date" type="date" class="w-full border border-stone-300 rounded-lg px-3 py-2">
+        <p class="text-xs text-stone-400 mt-1">Your note above becomes the message inside. Make it good.</p>
+      </div>
     </div>
     <button class="w-full bg-amber-800 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-xl">
       Award it 🍫

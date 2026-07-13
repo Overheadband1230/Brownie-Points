@@ -21,6 +21,57 @@
 </script>
 {% endif %}
 
+{% if opened_gift %}
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 mb-6 text-center">
+  <div class="text-4xl mb-2">🎁✨</div>
+  <p class="font-bold text-emerald-800 text-lg">+{{ opened_gift.amount }} BP from {{ user_tag(opened_gift.sender) }}</p>
+  <p class="text-emerald-700 mt-1">“{{ opened_gift.note }}”</p>
+</div>
+<script>window.addEventListener('load', () => { bpChocolateRain(true); bpPop(); });</script>
+{% endif %}
+{% if gift_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-3 mb-4">{{ gift_error }}</p>{% endif %}
+
+{% if sealed_gifts %}
+<div class="grid sm:grid-cols-2 gap-3 mb-6">
+  {% for g in sealed_gifts %}
+  <div class="bg-white border-2 border-dashed border-amber-200 rounded-2xl p-4 text-center">
+    <div class="text-3xl mb-1">🎁</div>
+    <p class="text-sm">A sealed gift from <b>{{ user_tag(g.sender) }}</b></p>
+    {% if g.openable %}
+    <form method="post" action="/gifts/{{ g.id }}/open" class="mt-2">
+      <button class="bg-amber-800 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl">Open it 🎉</button>
+    </form>
+    {% else %}
+    <p class="text-xs text-stone-400 mt-2">🔒 opens {{ local_time(g.unlock_at) }} — no peeking</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="bg-white rounded-2xl shadow p-6 mb-6">
+  <h2 class="font-bold text-amber-900 mb-1">💌 Today's question</h2>
+  <p class="text-lg font-medium mb-3">{{ daily_question }}</p>
+  {% if daily_error %}<p class="text-rose-600 text-sm bg-rose-50 rounded-lg p-2 mb-3">{{ daily_error }}</p>{% endif %}
+  {% if not my_answer %}
+  <form method="post" action="/daily-answer" class="flex gap-3 text-sm">
+    <input name="answer" type="text" required placeholder="Your answer (worth +1 BP)"
+      class="flex-1 border border-stone-300 rounded-lg px-3 py-2">
+    <button class="bg-amber-800 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg">Answer 💌</button>
+  </form>
+  <p class="text-xs text-stone-400 mt-2">Answers stay hidden until you've answered. Obviously.</p>
+  {% else %}
+  <div class="space-y-2 text-sm">
+    <div class="bg-amber-50 rounded-lg px-3 py-2"><b>{{ user_tag(user) }}:</b> {{ my_answer.answer }}</div>
+    {% for a in other_answers %}
+    <div class="bg-sky-50 rounded-lg px-3 py-2"><b>{{ user_tag(a.user) }}:</b> {{ a.answer }}</div>
+    {% else %}
+    <p class="text-stone-400 text-xs">Waiting on everyone else… 👀</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
 <div class="grid sm:grid-cols-2 gap-4 mb-6">
   <div class="bg-white rounded-2xl shadow p-6 text-center">
     <p class="text-sm text-stone-500">Spendable balance</p>

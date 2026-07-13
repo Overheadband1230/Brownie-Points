@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session
 from app import auth
 from app.db import get_db
 from app.models import (BetStatus, Category, EntryType, Item, LedgerEntry,
-                        Redemption, RedemptionStatus, User, iso_utc)
+                        Redemption, RedemptionStatus, SealedGift, User, iso_utc)
 from app.services import admin as admin_service
 from app.services import bets as bets_service
+from app.services import daily as daily_service
+from app.services import memories as memories_service
 from app.services import notify as notify_service
 from app.services import transactions
 from app.services.ledger import get_balance
@@ -104,11 +106,32 @@ def logout():
 
 # ---------- dashboard ----------
 
-@router.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, user: User | None = Depends(auth.get_optional_user),
-              db: Session = Depends(get_db)):
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
+def _daily_context(db: Session, user: User) -> dict:
+    day = daily_service.today_key()
+    answers = daily_service.answers_for(db, day)
+    my_answer = next((a for a in answers if a.user_id == user.id), None)
+    return {
+        "daily_question": daily_service.todays_question(day),
+        "my_answer": my_answer,
+        # No peeking: others' answers only visible once you've answered.
+        "other_answers": [a for a in answers if a.user_id != user.id] if my_answer else [],
+    }
+
+
+def _gifts_context(db: Session, user: User) -> dict:
+    unopened = db.scalars(
+        select(SealedGift)
+        .where(SealedGift.recipient_id == user.id, SealedGift.opened_at.is_(None))
+        .order_by(SealedGift.created_at)
+    ).all()
+    now = transactions._as_naive_utc(transactions.utcnow())
+    for g in unopened:
+        unlock = transactions._as_naive_utc(g.unlock_at)
+        g.openable = unlock is None or now >= unlock
+    return {"sealed_gifts": unopened}
+
+
+def _dashboard_render(request: Request, db: Session, user: User, **extra):
     recent = db.scalars(
         select(LedgerEntry)
         .where(or_(LedgerEntry.user_id == user.id, LedgerEntry.counterparty_id == user.id))
@@ -133,21 +156,52 @@ def dashboard(request: Request, user: User | None = Depends(auth.get_optional_us
         seen_award_id = int(request.cookies.get("bp_seen_award", "0"))
     except ValueError:
         seen_award_id = 0
-    new_awards = [
-        e for e in db.scalars(
-            select(LedgerEntry)
-            .where(LedgerEntry.user_id == user.id,
-                   LedgerEntry.entry_type == EntryType.AWARD,
-                   LedgerEntry.id > seen_award_id)
-            .order_by(LedgerEntry.id)
-        ).all()
-    ]
+    new_awards = db.scalars(
+        select(LedgerEntry)
+        .where(LedgerEntry.user_id == user.id,
+               LedgerEntry.entry_type == EntryType.AWARD,
+               LedgerEntry.id > seen_award_id)
+        .order_by(LedgerEntry.id)
+    ).all()
     latest_award_id = max((e.id for e in new_awards), default=seen_award_id)
 
     return _render(request, "dashboard.html", user, db,
                    recent=recent, pending=_pending_for_me(db, user),
                    my_open_requests=my_open_requests,
-                   new_awards=new_awards, latest_award_id=latest_award_id)
+                   new_awards=new_awards, latest_award_id=latest_award_id,
+                   **_daily_context(db, user), **_gifts_context(db, user), **extra)
+
+
+@router.get("/", response_class=HTMLResponse)
+def dashboard(request: Request, user: User | None = Depends(auth.get_optional_user),
+              db: Session = Depends(get_db)):
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    return _dashboard_render(request, db, user)
+
+
+@router.post("/daily-answer", response_class=HTMLResponse)
+def daily_answer_submit(request: Request, answer: str = Form(""),
+                        user: User = Depends(auth.get_current_user),
+                        db: Session = Depends(get_db)):
+    error = None
+    try:
+        daily_service.answer_today(db, user, answer)
+    except ValueError as e:
+        error = str(e)
+    return _dashboard_render(request, db, user, daily_error=error)
+
+
+@router.post("/gifts/{gift_id}/open", response_class=HTMLResponse)
+def gift_open(request: Request, gift_id: int,
+              user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    opened = None
+    try:
+        opened = transactions.open_gift(db, user, gift_id)
+    except (ValueError, PermissionError) as e:
+        error = str(e)
+    return _dashboard_render(request, db, user, gift_error=error, opened_gift=opened)
 
 
 # ---------- award ----------
@@ -162,15 +216,32 @@ def award_page(request: Request, user: User = Depends(auth.get_current_user),
 @router.post("/award", response_class=HTMLResponse)
 def award_submit(request: Request, to_user_id: int = Form(...), amount: int = Form(...),
                  reason: str = Form(""), category: str = Form(""),
+                 seal: str = Form(""), unlock_date: str = Form(""),
                  user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    recipient = db.get(User, to_user_id)
     try:
-        transactions.award(db, user, to_user_id, amount, reason, category or None)
+        if seal:
+            unlock_at = None
+            if unlock_date.strip():
+                from datetime import datetime, timedelta
+                from app.services.daily import QUESTION_UTC_OFFSET
+                # Date opens at local-ish midnight (same offset the daily
+                # question uses), expressed in naive UTC.
+                unlock_at = (datetime.strptime(unlock_date.strip(), "%Y-%m-%d")
+                             - timedelta(hours=QUESTION_UTC_OFFSET))
+            transactions.send_sealed_gift(db, user, to_user_id, amount, reason, unlock_at)
+        else:
+            transactions.award(db, user, to_user_id, amount, reason, category or None)
     except ValueError as e:
         return _render(request, "award.html", user, db,
                        users=_users_except(db, user.id), categories=_categories(db),
                        error=str(e), form={"to_user_id": to_user_id, "amount": amount,
                                            "reason": reason, "category": category})
-    recipient = db.get(User, to_user_id)
+    if seal:
+        return _render(request, "award.html", user, db,
+                       users=_users_except(db, user.id), categories=_categories(db),
+                       sealed={"name": recipient.display_name,
+                               "unlock_date": unlock_date.strip() or None})
     return _render(request, "award.html", user, db,
                    users=_users_except(db, user.id), categories=_categories(db),
                    awarded={"name": recipient.display_name, "amount": amount})
@@ -417,6 +488,28 @@ def bet_concede(request: Request, bet_id: int,
 def bet_void(request: Request, bet_id: int,
              user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
     return _bet_action(request, db, user, bets_service.void_bet, bet_id)
+
+
+# ---------- memories ----------
+
+@router.get("/memories", response_class=HTMLResponse)
+def memories_page(request: Request, user: User = Depends(auth.get_current_user),
+                  db: Session = Depends(get_db)):
+    return _render(request, "memories.html", user, db,
+                   items=memories_service.timeline(db))
+
+
+@router.post("/memories/note", response_class=HTMLResponse)
+def memories_note(request: Request, kind: str = Form(""), ref_id: int = Form(...),
+                  note: str = Form(""),
+                  user: User = Depends(auth.get_current_user), db: Session = Depends(get_db)):
+    error = None
+    try:
+        memories_service.upsert_note(db, user, kind, ref_id, note)
+    except ValueError as e:
+        error = str(e)
+    return _render(request, "memories.html", user, db,
+                   items=memories_service.timeline(db), error=error)
 
 
 # ---------- notifications ----------
