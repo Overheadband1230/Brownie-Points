@@ -151,6 +151,16 @@ class Category(Base):
     name: Mapped[str] = mapped_column(String, unique=True)
 
 
+class DailyQuestion(Base):
+    """The question pinned to a given day — assigned once, never reshuffled
+    even when the question bank is edited."""
+
+    __tablename__ = "daily_questions"
+
+    day: Mapped[str] = mapped_column(String, primary_key=True)  # "YYYY-MM-DD"
+    question: Mapped[str] = mapped_column(Text)
+
+
 class DailyAnswer(Base):
     __tablename__ = "daily_answers"
     __table_args__ = (UniqueConstraint("user_id", "day"),)

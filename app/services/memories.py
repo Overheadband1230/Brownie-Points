@@ -19,7 +19,7 @@ from app.models import (
     SealedGift,
     User,
 )
-from app.services.daily import todays_question
+from app.services.daily import stored_question
 
 VALID_KINDS = ("redemption", "bet", "gift")
 
@@ -55,7 +55,7 @@ def timeline(db: Session, limit: int = 100) -> list[MemoryItem]:
     for day, rows in by_day.items():
         if len(rows) >= 2:
             items.append(MemoryItem("qa", max(r.created_at for r in rows), rows,
-                                    question=todays_question(day)))
+                                    question=stored_question(db, day)))
 
     items.sort(key=lambda i: i.at, reverse=True)
     items = items[:limit]

@@ -290,6 +290,29 @@ def test_cannot_double_spend_across_bets_and_redemptions(db, users):
         bets_service.propose_bet(db, bob, alice.id, 2, "double dip")
 
 
+def test_daily_question_pinned_despite_bank_edits(db):
+    from app.services import daily
+
+    day = daily.today_key()
+    q_today = daily.question_for(db, day)
+    assert q_today == daily.QUESTION_BANK[0]  # first never-used question
+
+    original = daily.QUESTION_BANK[:]
+    try:
+        # Editing the bank must not change an already-assigned day.
+        daily.QUESTION_BANK.insert(0, "A brand new question at the front?")
+        daily.QUESTION_BANK.append("And one at the end?")
+        assert daily.question_for(db, day) == q_today
+        assert daily.stored_question(db, day) == q_today
+
+        # A new day picks the first question never used before.
+        q_next = daily.question_for(db, "2099-01-01")
+        assert q_next == "A brand new question at the front?"
+        assert q_next != q_today
+    finally:
+        daily.QUESTION_BANK[:] = original
+
+
 def test_balance_always_equals_ledger_sum_convention(db, users):
     """Spec §12: no drift — walk a busy history and reconcile."""
     alice, bob = users

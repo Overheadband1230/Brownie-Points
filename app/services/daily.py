@@ -8,10 +8,11 @@ QUESTION_UTC_OFFSET hours (default −5, ≈ midnight Eastern).
 import os
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import DailyAnswer, EntryType, LedgerEntry, User
+from app.models import DailyAnswer, DailyQuestion, EntryType, LedgerEntry, User
 from app.services.notify import notify
 
 QUESTION_UTC_OFFSET = int(os.environ.get("QUESTION_UTC_OFFSET", "-5"))
@@ -177,8 +178,44 @@ def today_key(now: datetime | None = None) -> str:
     return shifted.strftime("%Y-%m-%d")
 
 
-def todays_question(day: str | None = None) -> str:
+def question_for(db: Session, day: str | None = None) -> str:
+    """The question for a day, pinned in the DB on first use.
+
+    Once assigned it never changes, so the QUESTION_BANK can be freely
+    edited/extended without reshuffling past or current days. New days
+    take the first bank question that has never been used; when the
+    whole bank has been used, it cycles again.
+    """
     day = day or today_key()
+    row = db.get(DailyQuestion, day)
+    if row is not None:
+        return row.question
+
+    used = set(db.scalars(select(DailyQuestion.question)).all())
+    question = next((q for q in QUESTION_BANK if q not in used), None)
+    if question is None:  # every question used at least once — cycle
+        assigned_count = db.scalar(select(func.count()).select_from(DailyQuestion))
+        question = QUESTION_BANK[assigned_count % len(QUESTION_BANK)]
+
+    db.add(DailyQuestion(day=day, question=question))
+    try:
+        db.commit()
+    except IntegrityError:  # concurrent request pinned it first
+        db.rollback()
+        row = db.get(DailyQuestion, day)
+        if row is not None:
+            return row.question
+    return question
+
+
+def stored_question(db: Session, day: str) -> str:
+    """Read-only lookup for past days (memory wall) — never assigns.
+
+    Days answered before questions were pinned fall back to the old
+    modulo formula (best effort)."""
+    row = db.get(DailyQuestion, day)
+    if row is not None:
+        return row.question
     days_since_epoch = (datetime.strptime(day, "%Y-%m-%d") - datetime(1970, 1, 1)).days
     return QUESTION_BANK[days_since_epoch % len(QUESTION_BANK)]
 
@@ -195,6 +232,7 @@ def answer_today(db: Session, user: User, text: str) -> DailyAnswer:
     if not text:
         raise ValueError("An answer needs actual words.")
     day = today_key()
+    question_for(db, day)  # pin today's question even for API-only usage
     existing = db.scalar(
         select(DailyAnswer).where(DailyAnswer.user_id == user.id, DailyAnswer.day == day)
     )

@@ -399,7 +399,7 @@ def api_daily(user: User = Depends(auth.get_current_user), db: Session = Depends
     mine = next((a for a in answers if a.user_id == user.id), None)
     return {
         "day": day,
-        "question": daily_service.todays_question(day),
+        "question": daily_service.question_for(db, day),
         "my_answer": mine.answer if mine else None,
         # No peeking until you've answered.
         "answers": (

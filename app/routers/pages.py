@@ -111,7 +111,7 @@ def _daily_context(db: Session, user: User) -> dict:
     answers = daily_service.answers_for(db, day)
     my_answer = next((a for a in answers if a.user_id == user.id), None)
     return {
-        "daily_question": daily_service.todays_question(day),
+        "daily_question": daily_service.question_for(db, day),
         "my_answer": my_answer,
         # No peeking: others' answers only visible once you've answered.
         "other_answers": [a for a in answers if a.user_id != user.id] if my_answer else [],
