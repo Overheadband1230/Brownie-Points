@@ -22,11 +22,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.db import SessionLocal
 from app.models import DailyQuestion
+from app.services.daily import QUESTION_BANK
 
-# day -> the question actually shown that day. Edit if a value is wrong.
+
+def _pick(substr: str) -> str:
+    """Exact bank text via a unique substring — avoids retyping curly
+    apostrophes and guarantees the pin matches a real bank entry."""
+    matches = [q for q in QUESTION_BANK if substr in q]
+    if len(matches) != 1:
+        raise SystemExit(f"{substr!r} matched {len(matches)} bank entries, expected 1")
+    return matches[0]
+
+
+# day -> the question actually shown that day (13th was on the 42-question
+# bank, 14th on the 151-question bank after the overnight deploy).
 BACKFILL = {
-    "2026-07-13": "Would you rather fight one horse-sized duck or 100 duck-sized horses?",
-    "2026-07-14": "What's a song that always puts you in a good mood?",
+    "2026-07-13": _pick("horse-sized duck"),
+    "2026-07-14": _pick("procrastinate"),
 }
 
 
