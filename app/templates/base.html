@@ -119,32 +119,54 @@
 </head>
 <body class="min-h-screen text-stone-800">
   {% if user %}
-  <nav class="bg-amber-900 text-amber-50 shadow">
-    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-1 flex-wrap">
-      <a href="/" class="font-bold text-lg mr-3 whitespace-nowrap">🍫 Brownie Points</a>
-      <div class="flex gap-1 flex-wrap text-sm">
-        <a href="/" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Dashboard</a>
-        <a href="/award" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Award</a>
-        <a href="/spend" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Spend
+  {% macro nav_links(cls) %}
+        <a href="/" class="{{ cls }}">Dashboard</a>
+        <a href="/award" class="{{ cls }}">Award</a>
+        <a href="/spend" class="{{ cls }}">Spend
           {% if pending_count %}<span class="ml-1 bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full">{{ pending_count }}</span>{% endif %}
         </a>
-        <a href="/shop" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Shop</a>
-        <a href="/offerings" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Offerings</a>
-        <a href="/bets" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Bets</a>
-        <a href="/memories" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Memories</a>
-        <a href="/ledger" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Ledger</a>
-        <a href="/reports" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Reports</a>
-        {% if user.is_admin %}<a href="/admin" class="px-3 py-1.5 rounded-lg hover:bg-amber-800">Admin</a>{% endif %}
+        <a href="/shop" class="{{ cls }}">Shop</a>
+        <a href="/offerings" class="{{ cls }}">Offerings</a>
+        <a href="/bets" class="{{ cls }}">Bets</a>
+        <a href="/memories" class="{{ cls }}">Memories</a>
+        <a href="/ledger" class="{{ cls }}">Ledger</a>
+        <a href="/reports" class="{{ cls }}">Reports</a>
+        {% if user.is_admin %}<a href="/admin" class="{{ cls }}">Admin</a>{% endif %}
+  {% endmacro %}
+  <nav class="bg-amber-900 text-amber-50 shadow">
+    <div class="max-w-6xl mx-auto px-4">
+      <div class="py-3 flex items-center gap-2">
+        <a href="/" class="font-bold text-lg mr-1 whitespace-nowrap">🍫 Brownie Points</a>
+        <div class="hidden xl:flex gap-1 text-sm">
+          {{ nav_links('px-2.5 py-1.5 rounded-lg hover:bg-amber-800 whitespace-nowrap') }}
+        </div>
+        <div class="ml-auto flex items-center gap-2 text-sm">
+          <a href="/notifications" class="relative px-1.5 py-1 rounded-lg hover:bg-amber-800" title="Notifications">🔔
+            {% if unread_count %}<span class="absolute -top-1 -right-1.5 bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full">{{ unread_count }}</span>{% endif %}
+          </a>
+          <a href="/settings" class="text-amber-200 hover:text-white px-1 whitespace-nowrap" title="Settings">{{ user.avatar or '🍫' }}<span class="hidden sm:inline"> {{ user.display_name }} ⚙️</span></a>
+          <a href="/logout" class="hidden xl:block px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-700">Logout</a>
+          <button id="bp-nav-toggle" type="button" class="xl:hidden px-2.5 py-1.5 rounded-lg hover:bg-amber-800 text-lg leading-none"
+                  aria-label="Menu" aria-expanded="false" aria-controls="bp-nav-menu"
+                  onclick="bpToggleNav()">☰</button>
+        </div>
       </div>
-      <div class="ml-auto flex items-center gap-3 text-sm">
-        <a href="/notifications" class="relative px-1.5 py-1 rounded-lg hover:bg-amber-800" title="Notifications">🔔
-          {% if unread_count %}<span class="absolute -top-1 -right-1.5 bg-rose-500 text-white text-xs px-1.5 py-0.5 rounded-full">{{ unread_count }}</span>{% endif %}
-        </a>
-        <a href="/settings" class="text-amber-200 hover:text-white" title="Settings">{{ user.avatar or '🍫' }} {{ user.display_name }} ⚙️</a>
-        <a href="/logout" class="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-700">Logout</a>
+      <div id="bp-nav-menu" class="hidden xl:hidden pb-3 grid grid-cols-2 sm:grid-cols-3 gap-1 text-sm">
+        {{ nav_links('px-3 py-2 rounded-lg hover:bg-amber-800') }}
+        <a href="/settings" class="px-3 py-2 rounded-lg hover:bg-amber-800">Settings</a>
+        <a href="/logout" class="px-3 py-2 rounded-lg bg-amber-800 hover:bg-amber-700">Logout</a>
       </div>
     </div>
   </nav>
+  <script>
+    function bpToggleNav() {
+      const menu = document.getElementById('bp-nav-menu');
+      const btn = document.getElementById('bp-nav-toggle');
+      const open = menu.classList.toggle('hidden') === false;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.textContent = open ? '✕' : '☰';
+    }
+  </script>
   {% endif %}
   <main class="max-w-4xl mx-auto px-4 py-6">
     {% block content %}{% endblock %}
